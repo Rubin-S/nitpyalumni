@@ -27,9 +27,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'REDACTED_HISTORICAL_CREDENTIAL'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
-ALLOWED_HOSTS = ['sierramaps.ftp.sh', 'nitpyalumni.onrender.com']
+ALLOWED_HOSTS = ['sierramaps.ftp.sh', 'nitpyalumni.onrender.com', '127.0.0.1']
 
 
 # Application definition
