@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}NITPY Alumni{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light text-dark">
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <img src="https://www.nitpyalumni.com/images/NIT_Puducherry_Official_logo.png" alt="Logo" width="40" height="40" class="d-inline-block align-text-top">
+                NITPY Alumni
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavDropdown" aria-controls="navbarNavDropdown" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNavDropdown">
+                <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Home</a>
+                    </li>
+
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="aboutDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            About Us
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="aboutDropdown">
+                            <li><a class="dropdown-item" href="/vision_and_mission">Vision and Mission</a></li>
+                            <li><a class="dropdown-item" href="#">Office Bearers</a></li>
+                            <li><a class="dropdown-item" href="/director_message">Message from Director</a></li>
+                            <li><a class="dropdown-item" href="#">Message from President</a></li>
+                        </ul>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link" href="/alumni-map">Map of Alumni</a>
+                    </li>
+
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="supportDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            Support
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="supportDropdown">
+                            <li><a class="dropdown-item" href="/guest-house-booking">Guest House Booking</a></li>
+                            <li><a class="dropdown-item" href="/card-application">Alumni Card Application</a></li>
+                            <li><a class="dropdown-item" href="/get-transcript">Get Transcript</a></li>
+                        </ul>
+                    </li>
+
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="eventsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            Events
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="eventsDropdown">
+                            <li><a class="dropdown-item" href="#">Alumni Meetups</a></li>
+                            <li><a class="dropdown-item" href="#">Alumni Reunions</a></li>
+                        </ul>
+                    </li>
+                    {%if request.user.is_authenticated %}
+                    <li class="nav-item">
+                        <a class="btn btn-outline-primary me-2" href="/logout">Logout</a>
+                    </li>
+
+                    {%else%}
+                    <li class="nav-item">
+                        <a class="btn btn-outline-primary me-2" href="/login">Login</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="btn btn-primary" href="/signup">Signup</a>
+                    </li>
+                    {%endif%}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container my-5">
+        {% block content %}
+        {% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white text-dark pt-5 pb-3 mt-5 border-top">
+        <div class="container">
+            <div class="row">
+
+                <div class="col-md-4 mb-4">
+                    <h5>About Us</h5>
+                    <p>Welcome to our Alumni Association, where lifelong connections are nurtured and cherished. We celebrate the achievements of our alumni.</p>
+                </div>
+
+                <div class="col-md-4 mb-4">
+                    <h5>Navigation</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="#" class="text-decoration-none text-dark">About Us</a></li>
+                        <li><a href="#" class="text-decoration-none text-dark">Courses</a></li>
+                        <li><a href="#" class="text-decoration-none text-dark">Community</a></li>
+                        <li><a href="#" class="text-decoration-none text-dark">Contact</a></li>
+                        <li class="mt-3">
+                            <strong>Dr. Naveen Raj R</strong><br>
+                            +91-7358455415<br>
+                            Alumni committee – Chairperson<br>
+                            <a href="mailto:alumni@nitpy.ac.in" class="text-decoration-none text-dark">alumni@nitpy.ac.in</a><br>
+                            <a href="mailto:naveenraj.r@nitpy.ac.in" class="text-decoration-none text-dark">naveenraj.r@nitpy.ac.in</a><br>
+                            <br>
+                            <strong>Mr. Rahavendar</strong><br>
+                            President
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="col-md-4 mb-4">
+                    <h5>Helps</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="#" class="text-decoration-none text-dark">Terms & Conditions</a></li>
+                        <li><a href="#" class="text-decoration-none text-dark">Privacy Policy</a></li>
+                    </ul>
+                </div>
+
+            </div>
+
+            <div class="text-center mt-4">
+                <small>Copyright © 2025 NITPY All Rights Reserved.</small>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

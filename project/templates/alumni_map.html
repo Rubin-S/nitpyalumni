@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-5">
+  <h2>Visit Alumni Map</h2>
+  
+  <!-- Country Selection Form -->
+  <form method="GET" action="{% url 'alumni_map' %}">
+    <div class="row mb-3">
+      <div class="col-md-4">
+        <label for="country" class="form-label">Select Country</label>
+        <select id="country" name="country" class="form-select">
+          <option value="">Select Country</option>
+          <option value="India">India</option>
+          <option value="USA">USA</option>
+          <option value="UK">UK</option>
+          <!-- Add more countries here -->
+        </select>
+      </div>
+      <div class="col-md-4 d-flex align-items-end">
+        <button type="submit" class="btn btn-primary">Submit</button>
+      </div>
+    </div>
+  </form>
+  
+  <h4>Alumni List</h4>
+
+  <!-- Search Bar -->
+  <div class="d-flex mb-3">
+    <input type="text" id="searchBar" class="form-control me-2" placeholder="Search..." onkeyup="searchTable()">
+    <span class="d-inline-block">Show</span>
+    <select id="entriesSelect" class="form-select mx-2" onchange="updateEntries()">
+      <option value="10">10</option>
+      <option value="25">25</option>
+      <option value="50">50</option>
+    </select>
+    <span class="d-inline-block">entries</span>
+  </div>
+
+  <!-- Alumni Data Table -->
+  <table class="table table-bordered" id="alumniTable">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Email</th>
+        <th>Batch</th>
+        <th>Department</th>
+        <th>Current Position</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for alumni in alumni_list %}
+        <tr>
+          <td>{{ alumni.name }}</td>
+          <td>{{ alumni.email_id }}</td>
+          <td>{{ alumni.batch }}</td>
+          <td>{{ alumni.department }}</td>
+          <td>{{ alumni.job_title }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  
+  <!-- Pagination -->
+  <div class="pagination">
+    <span>Page: {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    <div class="d-flex justify-content-between">
+      <div>
+        {% if page_obj.has_previous %}
+          <a href="?page=1" class="btn btn-secondary">First</a>
+          <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-secondary">Previous</a>
+        {% endif %}
+      </div>
+      <div>
+        {% if page_obj.has_next %}
+          <a href="?page={{ page_obj.next_page_number }}" class="btn btn-secondary">Next</a>
+          <a href="?page={{ page_obj.paginator.num_pages }}" class="btn btn-secondary">Last</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Search functionality for the table
+  function searchTable() {
+    const input = document.getElementById('searchBar');
+    const filter = input.value.toLowerCase();
+    const table = document.getElementById("alumniTable");
+    const rows = table.getElementsByTagName("tr");
+
+    for (let i = 1; i < rows.length; i++) {
+      const cells = rows[i].getElementsByTagName("td");
+      let found = false;
+
+      for (let j = 0; j < cells.length; j++) {
+        const cell = cells[j];
+        if (cell) {
+          if (cell.textContent.toLowerCase().indexOf(filter) > -1) {
+            found = true;
+            break;
+          }
+        }
+      }
+
+      if (found) {
+        rows[i].style.display = "";
+      } else {
+        rows[i].style.display = "none";
+      }
+    }
+  }
+
+  // Change number of entries to show
+  function updateEntries() {
+    const entries = document.getElementById('entriesSelect').value;
+    window.location.href = `?entries=${entries}`;
+  }
+</script>
+
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}Login | NITPY Alumni{% endblock %}
+
+{% block content %}
+<section class="py-5 bg-light">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-6 col-lg-5">
+                <div class="card shadow-sm p-4">
+                    <h3 class="text-center mb-4 fw-bold">Welcome Back!</h3>
+                    <p class="text-center text-muted mb-4">Sign in to your account and join us</p>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        {% if messages %}
+                            {% for message in messages %}
+                                <div class="alert alert-{{ message.tags }} text-center">
+                                    {{ message }}
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Enter Your Email ID</label>
+                            <input type="email" class="form-control" id="email" name="email" placeholder="Your email ID here" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Enter Your Password</label>
+                            <input type="password" class="form-control" id="password" name="password" placeholder="Enter Your Password..." required>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">Sign In</button>
+                        </div>
+
+                        <p class="text-center mt-3">
+                            Don’t have an account? <a href="{% url 'signup' %}">Signup</a>
+                        </p>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
