@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block title %}Home | NITPY Alumni{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="text-center py-5 bg-white">
+    <div class="container">
+        <h1 class="display-4 fw-bold">Be the senior<br>you wish you had</h1>
+        {%if not request.user.is_authenticated %}
+        <a href="/signup" class="btn btn-primary btn-lg mt-4">Register Here</a>
+        {%endif %}
+        <div class="mt-5">
+            <h2 class="h5 text-muted">1k+ Members</h2>
+            <p class="lead mt-3">
+                Welcome to our Alumni Association, where lifelong connections are nurtured and cherished. 
+                We celebrate the achievements of our alumni.
+            </p>
+        </div>
+        <img src="https://www.nitpy.ac.in/assets/images/instituteCarousel/img014.jpg" alt="Alumni Image" class="img-fluid mt-4 rounded shadow-sm">
+    </div>
+</section>
+
+<!-- Services Section -->
+<section class="py-5 bg-light">
+    <div class="container">
+        <h2 class="text-center mb-5 fw-bold">Our Services</h2>
+        <div class="row g-4">
+
+            <!-- Service Item -->
+            <div class="col-md-4 text-center">
+                <h5>Guest House Booking</h5>
+                <p class="text-primary fw-semibold">Support</p>
+            </div>
+
+            <div class="col-md-4 text-center">
+                <h5>Alumni Card Application</h5>
+                <p class="text-primary fw-semibold">Support</p>
+            </div>
+
+            <div class="col-md-4 text-center">
+                <h5>Get Transcript</h5>
+                <p class="text-primary fw-semibold">Support</p>
+            </div>
+
+            <div class="col-md-4 text-center">
+                <h5>Job Opportunities</h5>
+                <p class="text-success fw-semibold">Engage</p>
+            </div>
+
+            <div class="col-md-4 text-center">
+                <h5>Volunteer for Leadership Talks</h5>
+                <p class="text-success fw-semibold">Engage</p>
+            </div>
+
+            <div class="col-md-4 text-center">
+                <h5>Volunteer for Mock Interviews</h5>
+                <p class="text-success fw-semibold">Engage</p>
+            </div>
+
+            <div class="col-md-4 text-center">
+                <h5>Donate Books</h5>
+                <p class="text-success fw-semibold">Engage</p>
+            </div>
+
+            <div class="col-md-4 text-center">
+                <h5>Alumni Meetups</h5>
+                <p class="text-warning fw-semibold">Event</p>
+            </div>
+
+        </div>
+    </div>
+</section>
+
+{% endblock %}

@@ -1,0 +1,159 @@
+{% extends 'base.html' %}
+{% block title %}Signup | NITPY Alumni{% endblock %}
+
+{% block content %}
+<section class="py-5 bg-light">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-lg-8">
+        <div class="card shadow-sm p-5">
+          <h3 class="text-center mb-4 fw-bold">Create Your Account</h3>
+
+          <form method="post">
+            {% csrf_token %}
+            {% if messages %}
+              {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} text-center">
+                  {{ message }}
+                </div>
+              {% endfor %}
+            {% endif %}
+
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Full Name</label>
+                <input type="text" name="name" class="form-control" required>
+              </div>
+
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Roll Number</label>
+                <input type="text" name="roll_no" class="form-control" required>
+              </div>
+
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Phone Number</label>
+                <input type="text" name="phone_number" class="form-control" required>
+              </div>
+
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Email ID</label>
+                <input type="email" name="email_id" class="form-control" required>
+              </div>
+
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Country</label>
+                <input type="text" name="country" class="form-control" required>
+              </div>
+
+              <div class="col-md-6 mb-3">
+                <label class="form-label">State</label>
+                <input type="text" name="state" class="form-control" required>
+              </div>
+
+              <div class="col-md-6 mb-3">
+                <label class="form-label">City</label>
+                <input type="text" name="city" class="form-control" required>
+              </div>
+
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Batch</label>
+                <input type="number" name="batch" class="form-control" required>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Department</label>
+                <select name="department" class="form-select" required>
+                  <option value="" disabled selected>Select your Department</option>
+                  <option value="Computer Science Engineering">Computer Science Engineering</option>
+                  <option value="Electronics and Communication Engineering">Electronics and Communication Engineering</option>
+                  <option value="Electrical and Electronics Engineering">Electrical and Electronics Engineering</option>
+                  <option value="Mechanical Engineering">Mechanical Engineering</option>
+                  <option value="Civil Engineering">Civil Engineering</option>
+                </select>
+              </div>
+              
+
+              <div class="col-md-12 mb-3">
+                <label class="form-label">Present Address</label>
+                <textarea name="present_address" class="form-control" rows="2" required></textarea>
+              </div>
+
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Facebook Profile (Optional)</label>
+                <input type="url" name="facebook" class="form-control">
+              </div>
+
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Instagram Profile (Optional)</label>
+                <input type="url" name="instagram" class="form-control">
+              </div>
+
+              <div class="col-md-12 mb-4">
+                <label class="form-label">Currently</label>
+                <select class="form-select" id="current_status" name="current_status" required onchange="toggleFields()">
+                  <option value="">-- Select --</option>
+                  <option value="job">Working</option>
+                  <option value="study">Pursuing Higher Studies</option>
+                  <option value="none">Neither</option>
+                </select>
+              </div>
+
+              <!-- Job Fields -->
+              <div id="job_fields" style="display:none;">
+                <div class="mb-3">
+                  <label class="form-label">Job Title</label>
+                  <input type="text" name="job_title" class="form-control">
+                </div>
+              </div>
+
+              <!-- Higher Studies Fields -->
+              <div id="study_fields" style="display:none;">
+                <div class="mb-3">
+                  <label class="form-label">University Name</label>
+                  <input type="text" name="higher_study_uni_name" class="form-control">
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">University Address</label>
+                  <input type="text" name="higher_study_uni_address" class="form-control">
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">Field of Study</label>
+                  <input type="text" name="higher_study_field" class="form-control">
+                </div>
+              </div>
+
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Create Password</label>
+                <input type="password" name="password1" class="form-control" required>
+              </div>
+
+              <div class="col-md-6 mb-4">
+                <label class="form-label">Confirm Password</label>
+                <input type="password" name="password2" class="form-control" required>
+              </div>
+            </div>
+
+            <div class="d-grid">
+              <button type="submit" class="btn btn-primary">Register</button>
+            </div>
+
+            <p class="text-center mt-3">
+              Already have an account? <a href="{% url 'login' %}">Login</a>
+            </p>
+          </form>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+function toggleFields() {
+  var status = document.getElementById('current_status').value;
+  document.getElementById('job_fields').style.display = (status === 'job') ? 'block' : 'none';
+  document.getElementById('study_fields').style.display = (status === 'study') ? 'block' : 'none';
+}
+</script>
+{% endblock %}
