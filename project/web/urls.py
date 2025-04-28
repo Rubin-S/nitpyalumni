@@ -28,5 +28,5 @@ urlpatterns = [
      path('guest-house-booking/', views.guest_house_booking_request, name='guest_house_booking'),
     path('card-application/', views.card_application_request, name='card_application'),
     path('get-transcript/', views.get_transcript_request, name='get_transcript'),
-    path('logout/', views.auth_logout, name='logout'),
+
 ]
