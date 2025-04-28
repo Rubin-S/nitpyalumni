@@ -27,7 +27,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-*ujlq&0ofvwym8djvsqet1w$&6-=k*n*h)adnj-5w%epe$1*a#'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = ['sierramaps.ftp.sh', 'nitpyalumni.onrender.com', '127.0.0.1']
 
