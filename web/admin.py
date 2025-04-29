@@ -21,3 +21,12 @@ class TalkAdmin(admin.ModelAdmin):
     list_filter = ('venue', 'datetime')
     search_fields = ('user__username', 'topic', 'venue', 'current_position')
     ordering = ('-datetime',)
+
+
+
+from django.contrib import admin
+
+# Change admin site header and title
+admin.site.site_header = "NITPY Alumni"
+admin.site.site_title = "NITPY Alumni Admin Portal"
+admin.site.index_title = "Welcome to NITPY Alumni Admin"
