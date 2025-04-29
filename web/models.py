@@ -3,14 +3,14 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.conf import settings
-
+recipient_list=['naveenraj.r@nitpy.ac.in', 'gupta.ojas.27@gmail.com']
 # Utility function to send email
 def send_creation_email(subject, message):
     send_mail(
         subject=subject,
         message=message,
         from_email=settings.EMAIL_HOST_USER,
-        recipient_list=['naveenraj.r@nitpy.ac.in'],
+        recipient_list=recipient_list,
         fail_silently=False,
     )
 

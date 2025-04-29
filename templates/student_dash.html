@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - NITPY Alumni{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2 class="mb-4">Hey {{user.name}}!<br>Welcome to the Alumni Dashboard</h2>
+    {%if not is_approved %}
+    <div class="alert alert-danger text-center">Your account is under approval</div>
+    {%endif%}
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} text-center">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
+    <!-- Action Section -->
+    <div class="row mb-5">
+        <div class="col-md-4 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">Add a New Job Posting</h5>
+                    <p class="card-text">Help juniors by sharing job openings from your company or network.</p>
+                    {%if not is_approved %}
+                    <a class="btn btn-danger btn-outline">Add Job</a>
+                    {%else%}
+                    <a href="/add-job" class="btn btn-primary">Add Job</a>
+                    {%endif%}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">Volunteer for Leadership Talks</h5>
+                    <p class="card-text">Inspire students by sharing your journey and insights.</p>
+                    {%if not is_approved %}
+                    <a class="btn btn-outline btn-danger">Volunteer</a>
+                    {%else%}
+                    <a href="/volunteer-talk" class="btn btn-primary">Volunteer</a>
+                    {%endif%}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">Volunteer for Mock Interviews</h5>
+                    <p class="card-text">Train students with realistic interview sessions.</p>
+                    {%if not is_approved %}
+                    <a class="btn btn-outline btn-danger">Volunteer</a>
+                    {%else%}
+                    <a href="/volunteer-interview" class="btn btn-primary">Volunteer</a>
+                    {%endif%}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <hr class="my-5">
+
+    <!-- HR Support Section -->
+    <div class="row">
+        <div class="col-md-4 mb-4">
+            <div class="card h-100 border-primary">
+                <div class="card-body">
+                    <h5 class="card-title">Guest House Booking</h5>
+                    <p class="card-text">Reserve the NITPY Guest House for your visit.</p>
+                    <a href="/guest-house-booking" class="btn btn-outline-primary">Book Now</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4 mb-4">
+            <div class="card h-100 border-primary">
+                <div class="card-body">
+                    <h5 class="card-title">Alumni Card Application</h5>
+                    <p class="card-text">Apply for your official Alumni ID card here.</p>
+                    <a href="/card-application" class="btn btn-outline-primary">Apply</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4 mb-4">
+            <div class="card h-100 border-primary">
+                <div class="card-body">
+                    <h5 class="card-title">Get Transcript</h5>
+                    <p class="card-text">Request your academic transcript digitally.</p>
+                    <a href="/get-transcript" class="btn btn-outline-primary">Request</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

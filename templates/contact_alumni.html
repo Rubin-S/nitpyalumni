@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Contact Alumni{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2 class="mb-4">Contact Alumni {{receiver.name}}</h2>
+
+    <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+            <label for="subject" class="form-label">Subject</label>
+            <input type="text" class="form-control" id="subject" name="subject" required>
+        </div>
+        <div class="mb-3">
+            <label for="message" class="form-label">Message</label>
+            <textarea class="form-control" id="message" name="message" rows="6" required></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Send Message</button>
+    </form>
+</div>
+{% endblock %}
