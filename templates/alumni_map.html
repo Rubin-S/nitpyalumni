@@ -44,20 +44,20 @@
     <thead>
       <tr>
         <th>Name</th>
-        <th>Email</th>
         <th>Batch</th>
         <th>Department</th>
         <th>Current Position</th>
+        <th>Contact</th>
       </tr>
     </thead>
     <tbody>
       {% for alumni in alumni_list %}
         <tr>
           <td>{{ alumni.name }}</td>
-          <td>{{ alumni.email_id }}</td>
           <td>{{ alumni.batch }}</td>
           <td>{{ alumni.department }}</td>
           <td>{{ alumni.job_title }}</td>
+          <td><a href="/contact-alumni/{{alumni.user.pk}}">Contact</a></td>
         </tr>
       {% endfor %}
     </tbody>

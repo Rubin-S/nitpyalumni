@@ -7,7 +7,17 @@ from django.contrib.auth.models import User
 from web.models import UserData
 from .models import GuestHouseBookingRequest, CardApplicationRequest, GetTranscriptRequest
 from django.contrib.auth import logout
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
+from django.core.mail import EmailMessage
+from django.conf import settings
+from django.template.loader import render_to_string
 def index(request):
+    if request.user.is_authenticated:
+        user = UserData.objects.get(user=request.user)
+        is_approved = user.account_is_approved
+        return render(request, 'student_dash.html', context={"user":user, "is_approved":is_approved})
     return render(request, "home.html")
 def vam(request):
     return render(request, "vision_and_mission.html")
@@ -101,6 +111,7 @@ def signup_view(request):
         return redirect('login')
 
     return render(request, 'signup.html')
+@login_required
 def alumni_map(request):
     # Fetch query parameters
     country = request.GET.get('country', '')
@@ -174,3 +185,37 @@ def auth_logout(request):
     logout(request)
     messages.success(request, "You have been logged out successfully.")
     return redirect('login')  # or wherever you want to send them after logout
+
+@login_required
+def contact_alumni(request, user_id):
+    try:
+        receiver = get_object_or_404(User, pk=user_id)
+        print(receiver)
+        receiver = get_object_or_404(UserData, user=receiver)
+        
+        if request.method == 'POST':
+            subject = request.POST.get('subject')
+            message = request.POST.get('message')
+
+            # Render HTML email
+            html_content = render_to_string('email/contact_email.html', {
+                'subject': subject,
+                'message': message,
+                'sender': request.user
+            })
+
+            email = EmailMessage(
+                subject=f"New Message: {subject}",
+                body=html_content,
+                from_email=settings.EMAIL_HOST_USER,
+                to=[receiver.email_id],
+            )
+            email.content_subtype = "html"
+            email.send()
+            messages.success(request, "Your Message is sent successfully")
+
+            return redirect('/alumni-map')  # Redirect to a success page after sending
+        return render(request, 'contact_alumni.html', {'receiver': receiver})
+    except Exception as e:
+        print(e)
+        return redirect('/')

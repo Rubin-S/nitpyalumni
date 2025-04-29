@@ -29,4 +29,5 @@ urlpatterns = [
     path('card-application/', views.card_application_request, name='card_application'),
     path('get-transcript/', views.get_transcript_request, name='get_transcript'),
     path('logout/', views.auth_logout, name='logout'),
+    path('contact-alumni/<int:user_id>/', views.contact_alumni, name='contact_alumni'),
 ]
