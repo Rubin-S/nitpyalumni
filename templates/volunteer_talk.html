@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Volunteer for Leadership Talk{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <h2 class="mb-3">Volunteer for Leadership Talks</h2>
+    <p class="text-muted">Inspire students by sharing your journey and insights.</p>
+    {% if messages %}
+    {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} text-center">
+            {{ message }}
+        </div>
+    {% endfor %}
+{% endif %}
+    <form method="POST">
+        {% csrf_token %}
+
+        <div class="mb-3">
+            <label for="current_position" class="form-label">Current Position</label>
+            <textarea class="form-control" id="current_position" name="current_position" rows="2" required></textarea>
+        </div>
+
+        <div class="mb-3">
+            <label for="short_bio" class="form-label">Short Bio</label>
+            <textarea class="form-control" id="short_bio" name="short_bio" rows="3" required></textarea>
+        </div>
+
+        <div class="mb-3">
+            <label for="topic" class="form-label">Topic</label>
+            <input type="text" class="form-control" id="topic" name="topic" required>
+        </div>
+
+        <div class="mb-3">
+            <label for="datetime" class="form-label">Date & Time</label>
+            <input type="datetime-local" class="form-control" id="datetime" name="datetime" required>
+        </div>
+
+        <div class="mb-3">
+            <label for="venue" class="form-label">Venue</label>
+            <input type="text" class="form-control" id="venue" name="venue" required>
+        </div>
+
+        <div class="mb-3">
+            <label for="extra_text" class="form-label">Any Extra Info</label>
+            <textarea class="form-control" id="extra_text" name="extra_text" rows="2" required></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-success">Submit Talk Proposal</button>
+    </form>
+</div>
+{% endblock %}
