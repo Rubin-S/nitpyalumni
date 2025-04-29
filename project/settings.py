@@ -61,7 +61,7 @@ EMAIL_HOST_PASSWORD = 'REDACTED_HISTORICAL_CREDENTIAL'
 
 
 MIDDLEWARE = [
-    #'web.m1.ForceErrorMiddleware',
+    'web.m1.ForceErrorMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',

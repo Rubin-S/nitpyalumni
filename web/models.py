@@ -71,6 +71,7 @@ class Talk(models.Model):
     datetime = models.DateTimeField()
     venue = models.CharField(max_length=255)
     extra_text = models.TextField()
+    is_approved = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None

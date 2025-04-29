@@ -30,4 +30,8 @@ urlpatterns = [
     path('get-transcript/', views.get_transcript_request, name='get_transcript'),
     path('logout/', views.auth_logout, name='logout'),
     path('contact-alumni/<int:user_id>/', views.contact_alumni, name='contact_alumni'),
+    path('add-job/', views.add_job_posting, name='add_job_posting'),
+    path('all-jobs/', views.all_jobs_view, name='all_jobs'),
+    path('volunteer-talk/', views.volunteer_talk_view, name='volunteer_talk'),
+    path('all-talks', views.all_talks_view)
 ]

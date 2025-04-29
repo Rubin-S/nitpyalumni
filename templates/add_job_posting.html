@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Add Job Posting{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2>Add a New Job Posting</h2>
+    <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+            <label for="job_title" class="form-label">Job Title</label>
+            <input type="text" class="form-control" id="job_title" name="job_title" required>
+        </div>
+        <div class="mb-3">
+            <label for="job_company" class="form-label">Company</label>
+            <input type="text" class="form-control" id="job_company" name="job_company" required>
+        </div>
+        <div class="mb-3">
+            <label for="job_location" class="form-label">Location</label>
+            <input type="text" class="form-control" id="job_location" name="job_location" required>
+        </div>
+        <button type="submit" class="btn btn-success">Submit Job</button>
+    </form>
+</div>
+{% endblock %}

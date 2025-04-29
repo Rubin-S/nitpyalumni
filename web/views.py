@@ -13,6 +13,8 @@ from django.contrib.auth.models import User
 from django.core.mail import EmailMessage
 from django.conf import settings
 from django.template.loader import render_to_string
+from django.db.models import Q
+from django.db.models import Prefetch
 def index(request):
     if request.user.is_authenticated:
         user = UserData.objects.get(user=request.user)
@@ -190,7 +192,7 @@ def auth_logout(request):
 def contact_alumni(request, user_id):
     try:
         receiver = get_object_or_404(User, pk=user_id)
-        print(receiver)
+
         receiver = get_object_or_404(UserData, user=receiver)
         
         if request.method == 'POST':
@@ -217,5 +219,97 @@ def contact_alumni(request, user_id):
             return redirect('/alumni-map')  # Redirect to a success page after sending
         return render(request, 'contact_alumni.html', {'receiver': receiver})
     except Exception as e:
-        print(e)
         return redirect('/')
+
+from .models import JobPosting
+
+@login_required
+def add_job_posting(request):
+    if request.method == 'POST':
+        job_title = request.POST.get('job_title')
+        job_company = request.POST.get('job_company')
+        job_location = request.POST.get('job_location')
+
+        JobPosting.objects.create(
+            job_title=job_title,
+            job_company=job_company,
+            job_location=job_location,
+            posted_by=request.user
+        )
+        messages.success(request, 'Your job is added successfully for review')
+        return redirect('/')  # redirect after submission
+
+    return render(request, 'add_job_posting.html')
+
+@login_required
+def all_jobs_view(request):
+    query = request.GET.get('q', '')
+
+    jobs = JobPosting.objects.filter(
+        is_approved=True
+    ).filter(
+        Q(job_title__icontains=query) | 
+        Q(job_company__icontains=query) | 
+        Q(job_location__icontains=query)
+    ).select_related('posted_by')\
+     .prefetch_related(
+        Prefetch('posted_by__userdata', queryset=UserData.objects.all())
+     ).order_by('-id')
+
+    paginator = Paginator(jobs, 5)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    return render(request, 'all_jobs.html', {'page_obj': page_obj, 'query': query})
+
+
+from .models import Talk
+from django import forms
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render, redirect
+from django.utils import timezone
+
+class TalkForm(forms.ModelForm):
+    class Meta:
+        model = Talk
+        fields = ['current_position', 'short_bio', 'topic', 'datetime', 'venue', 'extra_text']
+        widgets = {
+            'datetime': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
+        }
+
+@login_required
+def volunteer_talk_view(request):
+    if request.method == 'POST':
+        form = TalkForm(request.POST)
+        if form.is_valid():
+            talk = form.save(commit=False)
+            talk.user = request.user
+            talk.save()
+            messages.success(request, "You will be informed soon about the approval of this talk.")
+            return redirect('volunteer_talk')  # or redirect to a success page
+    else:
+        form = TalkForm()
+    return render(request, 'volunteer_talk.html', {'form': form})
+
+@login_required
+def all_talks_view(request):
+    query = request.GET.get('q', '')
+
+    talks = Talk.objects.select_related('user')\
+        .filter(is_approved=True)\
+        .filter(
+            Q(topic__icontains=query) |
+            Q(user__userdata__name__icontains=query) |
+            Q(current_position__icontains=query) |
+            Q(short_bio__icontains=query)
+        )\
+        .prefetch_related(
+            Prefetch('user__userdata', queryset=UserData.objects.all())
+        )\
+        .order_by('-datetime')
+
+    paginator = Paginator(talks, 5)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    return render(request, 'all_talks.html', {'page_obj': page_obj, 'query': query})

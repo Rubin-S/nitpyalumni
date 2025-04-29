@@ -33,15 +33,25 @@
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="aboutDropdown">
                             <li><a class="dropdown-item" href="/vision_and_mission">Vision and Mission</a></li>
-                            <li><a class="dropdown-item" href="#">Office Bearers</a></li>
                             <li><a class="dropdown-item" href="/director_message">Message from Director</a></li>
-                            <li><a class="dropdown-item" href="#">Message from President</a></li>
+                            <!--<li><a class="dropdown-item" href="#">Office Bearers</a></li>
+                            
+                            <li><a class="dropdown-item" href="#">Message from President</a></li>-->
                         </ul>
                     </li>
-
+                    {%if request.user.is_authenticated %}
                     <li class="nav-item">
                         <a class="nav-link" href="/alumni-map">Map of Alumni</a>
                     </li>
+                    {%endif%}
+                    {%if request.user.is_authenticated %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="/all-jobs">All Jobs</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/all-talks">All Talks</a>
+                    </li>
+                    {%endif%}
 
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="supportDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -54,7 +64,7 @@
                         </ul>
                     </li>
 
-                    <li class="nav-item dropdown">
+                    <!--<li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="eventsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             Events
                         </a>
@@ -62,7 +72,7 @@
                             <li><a class="dropdown-item" href="#">Alumni Meetups</a></li>
                             <li><a class="dropdown-item" href="#">Alumni Reunions</a></li>
                         </ul>
-                    </li>
+                    </li>-->
                     {%if request.user.is_authenticated %}
                     <li class="nav-item">
                         <a class="btn btn-outline-primary me-2" href="/logout">Logout</a>

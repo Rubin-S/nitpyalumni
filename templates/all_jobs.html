@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Available Jobs{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <h2 class="mb-4">Job Postings</h2>
+
+    <form method="get" class="mb-4">
+        <div class="input-group">
+            <input type="text" class="form-control" name="q" placeholder="Search by title, company or location" value="{{ query }}">
+            <button class="btn btn-outline-secondary" type="submit">Search</button>
+        </div>
+    </form>
+
+    {% if page_obj %}
+        {% for job in page_obj %}
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">{{ job.job_title }}</h5>
+                <p class="card-text">
+                    <strong>Company:</strong> {{ job.job_company }}<br>
+                    <strong>Location:</strong> {{ job.job_location }}
+                </p>
+                <p class="text-muted">
+                    Posted by <a href='/contact-alumni/{{job.posted_by.pk}}'>{{ job.posted_by.userdata.name|default:job.posted_by.username }}</a>
+                </p>
+                
+            </div>
+        </div>
+        {% empty %}
+        <p>No job postings found matching your query.</p>
+        {% endfor %}
+
+        <nav aria-label="Page navigation">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?q={{ query }}&page={{ page_obj.previous_page_number }}">Previous</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">Previous</span></li>
+                {% endif %}
+
+                <li class="page-item disabled">
+                    <span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                </li>
+
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?q={{ query }}&page={{ page_obj.next_page_number }}">Next</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">Next</span></li>
+                {% endif %}
+            </ul>
+        </nav>
+    {% else %}
+        <p>No jobs to show at the moment.</p>
+    {% endif %}
+</div>
+{% endblock %}
