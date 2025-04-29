@@ -29,7 +29,7 @@ SECRET_KEY = 'django-insecure-*ujlq&0ofvwym8djvsqet1w$&6-=k*n*h)adnj-5w%epe$1*a#
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['sierramaps.ftp.sh', 'nitpyalumni.onrender.com', '127.0.0.1']
+ALLOWED_HOSTS = ['sierramaps.ftp.sh', 'nitpyalumni.onrender.com', '127.0.0.1', 'nitpyalumni.com']
 
 
 # Application definition
@@ -45,8 +45,20 @@ INSTALLED_APPS = [
 ]
 CSRF_TRUSTED_ORIGINS = [
     'https://sierramaps.ftp.sh',
-    'https://nitpyalumni.onrender.com'
+    'https://nitpyalumni.onrender.com',
+    'https://nitpyalumni.com',
+    'https://www.nitpyalumni.com'
 ]
+
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+
+EMAIL_HOST_USER = 'nitpyalumni@gmail.com'
+EMAIL_HOST_PASSWORD = 'mvjr htdy hyzr mrkf'
+
 
 MIDDLEWARE = [
     'web.m1.ForceErrorMiddleware',
