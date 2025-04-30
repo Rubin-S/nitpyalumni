@@ -2,6 +2,16 @@
 {% block title %}Dashboard - NITPY Alumni{% endblock %}
 
 {% block content %}
+<style>
+    .card {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+    }
+</style>
+
 <div class="container">
     <h2 class="mb-4">Hey {{user.name}}!<br>Welcome to the Alumni Dashboard</h2>
     {%if not is_approved %}
@@ -16,7 +26,7 @@
     {% endif %}
     <!-- Action Section -->
     <div class="row mb-5">
-        <div class="col-md-6 mb-6">
+        <div class="col-md-4 mb-12">
             <div class="card h-100 shadow-sm">
                 <div class="card-body">
                     <h5 class="card-title">Add a New Job Posting</h5>
@@ -30,7 +40,7 @@
             </div>
         </div>
 
-        <div class="col-md-6 mb-6">
+        <div class="col-md-4 mb-12">
             <div class="card h-100 shadow-sm">
                 <div class="card-body">
                     <h5 class="card-title">Volunteer for Leadership Talks</h5>
@@ -39,6 +49,19 @@
                     <a class="btn btn-outline btn-danger">Volunteer</a>
                     {%else%}
                     <a href="/volunteer-talk" class="btn btn-primary">Volunteer</a>
+                    {%endif%}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-12">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">Donate Books</h5>
+                    <p class="card-text">Donate your books for the other students</p>
+                    {%if not is_approved %}
+                    <a class="btn btn-outline btn-danger">Donate</a>
+                    {%else%}
+                    <a href="/donate-book/" class="btn btn-primary">Donate</a>
                     {%endif%}
                 </div>
             </div>

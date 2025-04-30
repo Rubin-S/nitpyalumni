@@ -39,6 +39,19 @@
                             <li><a class="dropdown-item" href="#">Message from President</a></li>-->
                         </ul>
                     </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="volunteer" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            Volunteer
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="volunteer">
+                            <li><a class="dropdown-item" href="/add-job">Add a job</a></li>
+                            <li><a class="dropdown-item" href="/volunteer-talk">Volunteer for talk</a></li>
+                            <li><a class="dropdown-item" href="/donate-book">Donate A Book</a></li>
+                            <!--<li><a class="dropdown-item" href="#">Office Bearers</a></li>
+                            
+                            <li><a class="dropdown-item" href="#">Message from President</a></li>-->
+                        </ul>
+                    </li>
                     {%if request.user.is_authenticated %}
                     <li class="nav-item">
                         <a class="nav-link" href="/alumni-map">Map of Alumni</a>
