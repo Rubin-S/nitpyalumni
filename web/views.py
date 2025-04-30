@@ -15,6 +15,7 @@ from django.conf import settings
 from django.template.loader import render_to_string
 from django.db.models import Q
 from django.db.models import Prefetch
+from django.http import JsonResponse
 def index(request):
     if request.user.is_authenticated:
         user = UserData.objects.get(user=request.user)
@@ -136,31 +137,79 @@ def signup_view(request):
         messages.error(request, f"An error occurred: {str(e)}")
         return redirect('/login')
 
+
 @login_required
 def alumni_map(request):
-    # Fetch query parameters
-    country = request.GET.get('country', '')
-    entries = int(request.GET.get('entries', 10))
+    current_user = UserData.objects.get(user=request.user)
+    if not current_user.account_is_approved:
+        return redirect('/')
 
-    # Fetch data from the database
+    south = request.GET.get('south')
+    west = request.GET.get('west')
+    north = request.GET.get('north')
+    east = request.GET.get('east')
+    search_query = request.GET.get('search', '').strip()
+
     alumni_queryset = UserData.objects.all()
 
-    if country:
-        alumni_queryset = alumni_queryset.filter(country=country)
+    # Full-text multi-field search
 
-    # Pagination logic
-    paginator = Paginator(alumni_queryset, entries)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
 
-    # Pass data to the template
+    # Filter by bounding box if provided
+    if all([south, west, north, east]):
+        alumni_queryset = alumni_queryset.filter(
+            lat__gte=south,
+            lat__lte=north,
+            lng__gte=west,
+            lng__lte=east
+        )
+    if search_query:
+        alumni_queryset = UserData.objects.all().filter(
+            Q(roll_no__icontains=search_query) |
+            Q(name__icontains=search_query) |
+            Q(country__icontains=search_query) |
+            Q(phone_number__icontains=search_query) |
+            Q(state__icontains=search_query) |
+            Q(city__icontains=search_query) |
+            Q(batch__icontains=search_query) |
+            Q(department__icontains=search_query) |
+            Q(degree__icontains=search_query) |
+            Q(email_id__icontains=search_query) |
+            Q(present_address__icontains=search_query) |
+            Q(job_title__icontains=search_query) |
+            Q(job_address__icontains=search_query) |
+            Q(higher_study_uni_name__icontains=search_query) |
+            Q(higher_study_uni_address__icontains=search_query) |
+            Q(higher_study_field__icontains=search_query)
+        )
+        print(alumni_queryset)
+
+    # AJAX response for map-based query
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        alumni_data = [{
+            'id': a.user.pk,
+            'name': a.name,
+            'batch': a.batch,
+            'department': a.department,
+            'job_title': a.job_title,
+            'lat': a.lat,
+            'lng': a.lng
+        } for a in alumni_queryset]
+
+        return JsonResponse({'alumni': alumni_data})
+
+    # Regular HTML page render
     return render(request, 'alumni_map.html', {
-        'alumni_list': page_obj,
-        'page_obj': page_obj
+        'alumni_list': alumni_queryset
     })
+
+
 
 @login_required
 def guest_house_booking_request(request):
+    current_user = UserData.objects.get(user=request.user)
+    if not current_user.account_is_approved:
+        return redirect('/')
     if request.method == 'POST':
         type_of_room = request.POST.get('type_of_room')
         reason_of_visit = request.POST.get('reason_of_visit')
@@ -181,6 +230,9 @@ def guest_house_booking_request(request):
 
 @login_required
 def card_application_request(request):
+    current_user = UserData.objects.get(user=request.user)
+    if not current_user.account_is_approved:
+        return redirect('/')
     if request.method == 'POST':
         reason = request.POST.get('reason')
         utr_transaction_number = request.POST.get('utr_transaction_number')
@@ -197,6 +249,9 @@ def card_application_request(request):
 
 @login_required
 def get_transcript_request(request):
+    current_user = UserData.objects.get(user=request.user)
+    if not current_user.account_is_approved:
+        return redirect('/')
     if request.method == 'POST':
         GetTranscriptRequest.objects.create(
             user=request.user,
@@ -213,6 +268,9 @@ def auth_logout(request):
 
 @login_required
 def contact_alumni(request, user_id):
+    current_user = UserData.objects.get(user=request.user)
+    if not current_user.account_is_approved:
+        return redirect('/')
     try:
         receiver = get_object_or_404(User, pk=user_id)
 
@@ -248,6 +306,9 @@ from .models import JobPosting
 
 @login_required
 def add_job_posting(request):
+    current_user = UserData.objects.get(user=request.user)
+    if not current_user.account_is_approved:
+        return redirect('/')
     if request.method == 'POST':
         job_title = request.POST.get('job_title')
         job_company = request.POST.get('job_company')
@@ -266,6 +327,7 @@ def add_job_posting(request):
 
 @login_required
 def all_jobs_view(request):
+
     query = request.GET.get('q', '')
 
     jobs = JobPosting.objects.filter(
@@ -302,6 +364,9 @@ class TalkForm(forms.ModelForm):
 
 @login_required
 def volunteer_talk_view(request):
+    current_user = UserData.objects.get(user=request.user)
+    if not current_user.account_is_approved:
+        return redirect('/')
     if request.method == 'POST':
         form = TalkForm(request.POST)
         if form.is_valid():
@@ -340,6 +405,9 @@ def all_talks_view(request):
 
 @login_required
 def donate_book_view(request):
+    current_user = UserData.objects.get(user=request.user)
+    if not current_user.account_is_approved:
+        return redirect('/')
     if request.method == 'POST':
         booktitle = request.POST.get('booktitle', '').strip()
 

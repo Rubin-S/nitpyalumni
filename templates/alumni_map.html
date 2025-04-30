@@ -2,124 +2,112 @@
 
 {% block content %}
 <div class="container mt-5">
-  <h2>Visit Alumni Map</h2>
-  
-  <!-- Country Selection Form -->
-  <form method="GET" action="{% url 'alumni_map' %}">
-    <div class="row mb-3">
-      <div class="col-md-4">
-        <label for="country" class="form-label">Select Country</label>
-        <select id="country" name="country" class="form-select">
-          <option value="">Select Country</option>
-          <option value="India">India</option>
-          <option value="USA">USA</option>
-          <option value="UK">UK</option>
-          <!-- Add more countries here -->
-        </select>
-      </div>
-      <div class="col-md-4 d-flex align-items-end">
-        <button type="submit" class="btn btn-primary">Submit</button>
-      </div>
-    </div>
-  </form>
-  
-  <h4>Alumni List</h4>
+  <h2>Alumni Map</h2>
 
   <!-- Search Bar -->
-  <div class="d-flex mb-3">
-    <input type="text" id="searchBar" class="form-control me-2" placeholder="Search..." onkeyup="searchTable()">
-    <span class="d-inline-block">Show</span>
-    <select id="entriesSelect" class="form-select mx-2" onchange="updateEntries()">
-      <option value="10">10</option>
-      <option value="25">25</option>
-      <option value="50">50</option>
-    </select>
-    <span class="d-inline-block">entries</span>
+  <div class="mb-3">
+    <input type="text" id="searchInput" class="form-control" placeholder="Search by name, roll no, city, batch, department, etc."/>
   </div>
 
-  <!-- Alumni Data Table -->
- <!-- Alumni Data Table -->
-<div class="table-responsive">
-  <table class="table table-bordered" id="alumniTable">
-    <thead>
-      <tr>
-        <th>Name</th>
-        <th>Batch</th>
-        <th>Department</th>
-        <th>Current Position</th>
-        <th>Contact</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for alumni in alumni_list %}
+  <!-- Map -->
+  <div id="map" style="height: 500px;" class="mb-4"></div>
+
+  <!-- Alumni Table -->
+  <h4>Alumni in View</h4>
+  <div class="table-responsive">
+    <table class="table table-bordered" id="alumniTable">
+      <thead>
         <tr>
-          <td>{{ alumni.name }}</td>
-          <td>{{ alumni.batch }}</td>
-          <td>{{ alumni.department }}</td>
-          <td>{{ alumni.job_title }}</td>
-          <td><a href="/contact-alumni/{{alumni.user.pk}}">Contact</a></td>
+          <th>Name</th>
+          <th>Batch</th>
+          <th>Department</th>
+          <th>Current Position</th>
+          <th>Contact</th>
         </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-
-  
-  <!-- Pagination -->
-  <div class="pagination">
-    <span>Page: {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
-    <div class="d-flex justify-content-between">
-      <div>
-        {% if page_obj.has_previous %}
-          <a href="?page=1" class="btn btn-secondary">First</a>
-          <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-secondary">Previous</a>
-        {% endif %}
-      </div>
-      <div>
-        {% if page_obj.has_next %}
-          <a href="?page={{ page_obj.next_page_number }}" class="btn btn-secondary">Next</a>
-          <a href="?page={{ page_obj.paginator.num_pages }}" class="btn btn-secondary">Last</a>
-        {% endif %}
-      </div>
-    </div>
+      </thead>
+      <tbody>
+        <!-- Filled dynamically -->
+      </tbody>
+    </table>
   </div>
 </div>
+
+<!-- Leaflet JS & CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
-  // Search functionality for the table
-  function searchTable() {
-    const input = document.getElementById('searchBar');
-    const filter = input.value.toLowerCase();
-    const table = document.getElementById("alumniTable");
-    const rows = table.getElementsByTagName("tr");
+  const map = L.map('map').setView([10.964, 79.841], 13);
+  const markerGroup = L.layerGroup().addTo(map);
 
-    for (let i = 1; i < rows.length; i++) {
-      const cells = rows[i].getElementsByTagName("td");
-      let found = false;
+  L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+    attribution: '&copy; SierraMaps',
+    maxZoom: 20
+  }).addTo(map);
 
-      for (let j = 0; j < cells.length; j++) {
-        const cell = cells[j];
-        if (cell) {
-          if (cell.textContent.toLowerCase().indexOf(filter) > -1) {
-            found = true;
-            break;
-          }
-        }
+  let lastSearchQuery = '';
+
+  function fetchAlumni(triggeredBy = 'map') {
+    const bounds = map.getBounds();
+    const search = document.getElementById('searchInput').value.trim();
+
+    // Avoid re-fetching on map move if a search is already active
+    if (search !== '' && triggeredBy === 'map') return;
+
+    // Avoid redundant search fetch if the text hasn't changed
+    if (search === lastSearchQuery && triggeredBy === 'search') return;
+
+    // Update last known query
+    if (triggeredBy === 'search') lastSearchQuery = search;
+
+    const url = `?south=${bounds.getSouth()}&west=${bounds.getWest()}&north=${bounds.getNorth()}&east=${bounds.getEast()}&search=${encodeURIComponent(search)}`;
+
+    fetch(url, {
+      headers: { "X-Requested-With": "XMLHttpRequest" }
+    })
+    .then(response => response.json())
+    .then(data => {
+      markerGroup.clearLayers();
+      const tbody = document.querySelector('#alumniTable tbody');
+      tbody.innerHTML = '';
+
+      // Move map only when it's a search and has at least one result
+      if (search !== '' && data.alumni.length > 0 && triggeredBy === 'search') {
+        const first = data.alumni[0];
+        map.setView([first.lat, first.lng], map.getZoom());
       }
 
-      if (found) {
-        rows[i].style.display = "";
-      } else {
-        rows[i].style.display = "none";
-      }
-    }
+      data.alumni.forEach(alumni => {
+        const marker = L.marker([alumni.lat, alumni.lng])
+          .bindPopup(`<b>${alumni.name}</b><br>${alumni.department}<br>${alumni.job_title}`);
+        markerGroup.addLayer(marker);
+
+        const row = `<tr>
+          <td>${alumni.name}</td>
+          <td>${alumni.batch}</td>
+          <td>${alumni.department}</td>
+          <td>${alumni.job_title}</td>
+          <td><a href="/contact-alumni/${alumni.id}" class="btn btn-sm btn-outline-primary">Contact</a></td>
+        </tr>`;
+        tbody.insertAdjacentHTML('beforeend', row);
+      });
+    });
   }
 
-  // Change number of entries to show
-  function updateEntries() {
-    const entries = document.getElementById('entriesSelect').value;
-    window.location.href = `?entries=${entries}`;
+  // Debounce function
+  function debounce(func, delay) {
+    let timeout;
+    return function (...args) {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => func.apply(this, args), delay);
+    };
   }
+
+  const debouncedSearch = debounce(() => fetchAlumni('search'), 300);
+
+  document.getElementById('searchInput').addEventListener('input', debouncedSearch);
+  map.on('moveend', () => fetchAlumni('map'));
+  window.addEventListener('load', () => fetchAlumni('map'));
 </script>
 
 {% endblock %}
