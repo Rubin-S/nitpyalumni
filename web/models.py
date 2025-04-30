@@ -3,6 +3,7 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.conf import settings
+import requests
 recipient_list=['naveenraj.r@nitpy.ac.in', 'gupta.ojas.27@gmail.com']
 # Utility function to send email
 def send_creation_email(subject, message):
@@ -14,6 +15,7 @@ def send_creation_email(subject, message):
         fail_silently=True,
     )
 
+from decimal import Decimal
 
 class UserData(models.Model):
     account_is_approved = models.BooleanField(default=False)
@@ -38,12 +40,38 @@ class UserData(models.Model):
     higher_study_uni_name = models.CharField(max_length=255, blank=True, null=True)
     higher_study_uni_address = models.CharField(max_length=255, blank=True, null=True)
     higher_study_field = models.CharField(max_length=255, blank=True, null=True)
+    lat = models.DecimalField(default=Decimal("10.9254"), max_digits=9, decimal_places=6)
+    lng = models.DecimalField(default=Decimal("79.8380"), max_digits=9, decimal_places=6)
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None
+
+        # Only do geocoding for new users
+        if True:
+            address_query = f"{self.city}+{self.state}+{self.country}".replace(' ', '+')
+            api_key = "2db9f7b03e8e3e7257a9bbbfe027a636"
+            geocode_url = f"https://sierramaps.ftp.sh/api/geocoding/{address_query}/?api_key={api_key}"
+
+            try:
+                response = requests.get(geocode_url)
+                if response.status_code == 200:
+                    data = response.json()
+                    if len(data.get("resourceSet", [])) > 0:
+                        first_result = data["resourceSet"][0]
+                        if "geo" in first_result:
+                            self.lat = Decimal(first_result["geo"]["latitude"])
+                            self.lng = Decimal(first_result["geo"]["longitude"])
+            except Exception as e:
+                # Silent fail or log error if needed
+                print(f"Geocoding failed: {e}")
+
         super().save(*args, **kwargs)
+
         if is_new:
-            send_creation_email(f"New User {self.name} has applied for alumni account", f"A new user named: {self.name}, phone number: {self.phone_number} has applied. Kindly check admin panel to approve or reject the request")
+            send_creation_email(
+                f"New User {self.name} has applied for alumni account",
+                f"A new user named: {self.name}, phone number: {self.phone_number} has applied. Kindly check admin panel to approve or reject the request"
+            )
 
     def __str__(self):
         return f"{self.name} ({self.roll_no})"
