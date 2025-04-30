@@ -47,12 +47,13 @@ def login_view(request):
             messages.error(request, "No user found with this email address.")
 
     return render(request, 'login.html')
-
 def signup_view(request):
     try:
         if request.user.is_authenticated:
             return redirect('/')
+
         if request.method == 'POST':
+            # Get form data
             name = request.POST.get('name')
             roll_no = request.POST.get('roll_no')
             phone_number = request.POST.get('phone_number')
@@ -76,10 +77,12 @@ def signup_view(request):
             password1 = request.POST.get('password1')
             password2 = request.POST.get('password2')
 
+            # Password validation
             if password1 != password2:
                 messages.error(request, "Passwords do not match.")
                 return redirect('signup')
 
+            # Check if user already exists
             if User.objects.filter(username=roll_no).exists():
                 messages.error(request, "Roll number already registered.")
                 return redirect('signup')
@@ -88,6 +91,7 @@ def signup_view(request):
                 messages.error(request, "Email already registered.")
                 return redirect('signup')
 
+            # Create user account
             user = User.objects.create_user(
                 username=roll_no,
                 email=email_id,
@@ -96,6 +100,7 @@ def signup_view(request):
                 last_name=' '.join(name.split()[1:]) if len(name.split()) > 1 else ''
             )
 
+            # Create the UserData entry with the new fields
             user_data = UserData.objects.create(
                 user=user,
                 roll_no=roll_no,
@@ -106,24 +111,31 @@ def signup_view(request):
                 city=city,
                 batch=batch,
                 department=department,
+                degree=degree,  # Added degree field
                 email_id=email_id,
-                facebook=facebook,
-                instagram=instagram,
+                linked_in=linked_id,  # LinkedIn URL
+                facebook=facebook,  # Facebook URL
+                instagram=instagram,  # Instagram URL
                 in_job=(current_status == 'job'),
                 present_address=present_address,
                 job_title=job_title if current_status == 'job' else None,
+                job_address=job_address if current_status == 'job' else None,
                 higher_study_uni_name=higher_study_uni_name if current_status == 'study' else None,
                 higher_study_uni_address=higher_study_uni_address if current_status == 'study' else None,
                 higher_study_field=higher_study_field if current_status == 'study' else None
             )
 
+            # Success message and redirection
             messages.success(request, "Account created successfully! Please wait for approval.")
             return redirect('login')
 
         return render(request, 'signup.html')
+
     except Exception as e:
-        messages.error(str(e))
+        # Catch any exception and display an error message
+        messages.error(request, f"An error occurred: {str(e)}")
         return redirect('/login')
+
 @login_required
 def alumni_map(request):
     # Fetch query parameters
