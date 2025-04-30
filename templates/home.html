@@ -2,6 +2,74 @@
 {% block title %}Home | NITPY Alumni{% endblock %}
 
 {% block content %}
+<style>
+    /* Typewriter animation */
+    .typewriter h1 {
+        overflow: hidden;
+        border-right: .15em solid orange;
+        white-space: nowrap;
+        margin: 0 auto;
+        letter-spacing: .1em;
+        animation: typing 3.5s steps(40, end), blink-caret .75s step-end infinite;
+        font-size: 3rem;
+        background: linear-gradient(to right, #6a11cb, #2575fc);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: bold;
+    }
+    
+    @keyframes typing {
+      from { width: 0 }
+      to { width: 100% }
+    }
+    @keyframes blink-caret {
+      from, to { border-color: transparent }
+      50% { border-color: orange; }
+    }
+    
+    /* Gradient Headings */
+    .gradient-text {
+        background: linear-gradient(90deg, #ff7e5f, #feb47b);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: bold;
+    }
+    
+    /* Card styling */
+    .service-card {
+        border-radius: 15px;
+        border: 2px solid rgba(0, 123, 255, 0.1);
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        transition: all 0.4s ease;
+        background: white;
+    }
+    .service-card:hover {
+        transform: scale(1.05);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    }
+    
+    /* Button styling */
+    .btn-primary {
+        background: linear-gradient(to right, #6a11cb, #2575fc);
+        border: none;
+        transition: all 0.3s ease;
+    }
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+    
+    /* Scroll animations */
+    .fade-in {
+        opacity: 0;
+        transform: translateY(30px);
+        transition: opacity 1s ease, transform 1s ease;
+    }
+    .fade-in.visible {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    </style>
 <!-- Hero Section -->
 <section class="text-center py-5 bg-white">
     <div class="container">
@@ -21,54 +89,94 @@
 </section>
 
 <!-- Services Section -->
-<section class="py-5 bg-light">
+<!-- Services Section --><section class="py-5 bg-light">
     <div class="container">
-        <h2 class="text-center mb-5 fw-bold">Our Services</h2>
+        <h2 class="text-center mb-5 gradient-text">Our Services</h2>
         <div class="row g-4">
 
-            <!-- Service Item -->
-            <div class="col-md-4 text-center">
-                <h5>Guest House Booking</h5>
-                <p class="text-primary fw-semibold">Support</p>
+            <div class="col-md-4 text-center fade-in">
+                <a href="{% url 'guest_house_booking' %}" class="text-decoration-none text-dark">
+                    <div class="p-4 service-card h-100">
+                        <h5 class="fw-bold">Guest House Booking</h5>
+                        <p class="text-primary fw-semibold">Support</p>
+                    </div>
+                </a>
             </div>
 
-            <div class="col-md-4 text-center">
-                <h5>Alumni Card Application</h5>
-                <p class="text-primary fw-semibold">Support</p>
+            <div class="col-md-4 text-center fade-in">
+                <a href="{% url 'card_application' %}" class="text-decoration-none text-dark">
+                    <div class="p-4 service-card h-100">
+                        <h5 class="fw-bold">Alumni Card Application</h5>
+                        <p class="text-primary fw-semibold">Support</p>
+                    </div>
+                </a>
             </div>
 
-            <div class="col-md-4 text-center">
-                <h5>Get Transcript</h5>
-                <p class="text-primary fw-semibold">Support</p>
+            <div class="col-md-4 text-center fade-in">
+                <a href="{% url 'get_transcript' %}" class="text-decoration-none text-dark">
+                    <div class="p-4 service-card h-100">
+                        <h5 class="fw-bold">Get Transcript</h5>
+                        <p class="text-primary fw-semibold">Support</p>
+                    </div>
+                </a>
             </div>
 
-            <div class="col-md-4 text-center">
-                <h5>Job Opportunities</h5>
-                <p class="text-success fw-semibold">Engage</p>
+            <div class="col-md-4 text-center fade-in">
+                <a href="{% url 'all_jobs' %}" class="text-decoration-none text-dark">
+                    <div class="p-4 service-card h-100">
+                        <h5 class="fw-bold">Job Opportunities</h5>
+                        <p class="text-success fw-semibold">Engage</p>
+                    </div>
+                </a>
             </div>
 
-            <div class="col-md-4 text-center">
-                <h5>Volunteer for Leadership Talks</h5>
-                <p class="text-success fw-semibold">Engage</p>
+            <div class="col-md-4 text-center fade-in">
+                <a href="{% url 'volunteer_talk' %}" class="text-decoration-none text-dark">
+                    <div class="p-4 service-card h-100">
+                        <h5 class="fw-bold">Volunteer for Leadership Talks</h5>
+                        <p class="text-success fw-semibold">Engage</p>
+                    </div>
+                </a>
             </div>
 
-            <div class="col-md-4 text-center">
-                <h5>Volunteer for Mock Interviews</h5>
-                <p class="text-success fw-semibold">Engage</p>
+            <div class="col-md-4 text-center fade-in">
+                <a href="{% url 'donate_book' %}" class="text-decoration-none text-dark">
+                    <div class="p-4 service-card h-100">
+                        <h5 class="fw-bold">Donate Books</h5>
+                        <p class="text-success fw-semibold">Engage</p>
+                    </div>
+                </a>
             </div>
 
-            <div class="col-md-4 text-center">
-                <h5>Donate Books</h5>
-                <p class="text-success fw-semibold">Engage</p>
-            </div>
-
-            <div class="col-md-4 text-center">
-                <h5>Alumni Meetups</h5>
-                <p class="text-warning fw-semibold">Event</p>
+            <div class="col-md-12 text-center fade-in">
+                <a href="/alumni-map/" class="text-decoration-none text-dark">
+                    <div class="p-4 service-card h-100">
+                        <h5 class="fw-bold">Alumni Meetups</h5>
+                        <p class="text-warning fw-semibold">Event</p>
+                    </div>
+                </a>
             </div>
 
         </div>
     </div>
 </section>
+
+
+<script>
+    const faders = document.querySelectorAll('.fade-in');
+    const appearOptions = {
+        threshold: 0.1,
+        rootMargin: "0px 0px -50px 0px"
+    };
+    const appearOnScroll = new IntersectionObserver(function(entries, observer) {
+        entries.forEach(entry => {
+            if (!entry.isIntersecting) return;
+            entry.target.classList.add('visible');
+            observer.unobserve(entry.target);
+        });
+    }, appearOptions);
+
+    faders.forEach(fader => appearOnScroll.observe(fader));
+</script>
 
 {% endblock %}

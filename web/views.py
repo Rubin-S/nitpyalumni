@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.core.paginator import Paginator
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
-from web.models import UserData
+from web.models import UserData, DonateBook
 from .models import GuestHouseBookingRequest, CardApplicationRequest, GetTranscriptRequest
 from django.contrib.auth import logout
 from django.shortcuts import render, get_object_or_404, redirect
@@ -27,6 +27,8 @@ def dm(request):
     return render(request, "director_message.html")
 
 def login_view(request):
+    if request.user.is_authenticated:
+        return redirect('/')
     if request.method == 'POST':
         email = request.POST.get('email')
         password = request.POST.get('password')
@@ -47,72 +49,81 @@ def login_view(request):
     return render(request, 'login.html')
 
 def signup_view(request):
-    if request.method == 'POST':
-        name = request.POST.get('name')
-        roll_no = request.POST.get('roll_no')
-        phone_number = request.POST.get('phone_number')
-        email_id = request.POST.get('email_id')
-        country = request.POST.get('country')
-        state = request.POST.get('state')
-        city = request.POST.get('city')
-        batch = request.POST.get('batch')
-        department = request.POST.get('department')
-        present_address = request.POST.get('present_address')
-        facebook = request.POST.get('facebook') or None
-        instagram = request.POST.get('instagram') or None
-        current_status = request.POST.get('current_status')
-        job_title = request.POST.get('job_title') or None
-        higher_study_uni_name = request.POST.get('higher_study_uni_name') or None
-        higher_study_uni_address = request.POST.get('higher_study_uni_address') or None
-        higher_study_field = request.POST.get('higher_study_field') or None
-        password1 = request.POST.get('password1')
-        password2 = request.POST.get('password2')
+    try:
+        if request.user.is_authenticated:
+            return redirect('/')
+        if request.method == 'POST':
+            name = request.POST.get('name')
+            roll_no = request.POST.get('roll_no')
+            phone_number = request.POST.get('phone_number')
+            email_id = request.POST.get('email_id')
+            country = request.POST.get('country')
+            state = request.POST.get('state')
+            city = request.POST.get('city')
+            batch = request.POST.get('batch')
+            degree = request.POST.get('degree')
+            department = request.POST.get('department')
+            present_address = request.POST.get('present_address')
+            linked_id = request.POST.get('linkedin') or None
+            facebook = request.POST.get('facebook') or None
+            instagram = request.POST.get('instagram') or None
+            current_status = request.POST.get('current_status')
+            job_title = request.POST.get('job_title') or None
+            job_address = request.POST.get('job_address') or None
+            higher_study_uni_name = request.POST.get('higher_study_uni_name') or None
+            higher_study_uni_address = request.POST.get('higher_study_uni_address') or None
+            higher_study_field = request.POST.get('higher_study_field') or None
+            password1 = request.POST.get('password1')
+            password2 = request.POST.get('password2')
 
-        if password1 != password2:
-            messages.error(request, "Passwords do not match.")
-            return redirect('signup')
+            if password1 != password2:
+                messages.error(request, "Passwords do not match.")
+                return redirect('signup')
 
-        if User.objects.filter(username=roll_no).exists():
-            messages.error(request, "Roll number already registered.")
-            return redirect('signup')
+            if User.objects.filter(username=roll_no).exists():
+                messages.error(request, "Roll number already registered.")
+                return redirect('signup')
 
-        if User.objects.filter(email=email_id).exists():
-            messages.error(request, "Email already registered.")
-            return redirect('signup')
+            if User.objects.filter(email=email_id).exists():
+                messages.error(request, "Email already registered.")
+                return redirect('signup')
 
-        user = User.objects.create_user(
-            username=roll_no,
-            email=email_id,
-            password=password1,
-            first_name=name.split()[0],
-            last_name=' '.join(name.split()[1:]) if len(name.split()) > 1 else ''
-        )
+            user = User.objects.create_user(
+                username=roll_no,
+                email=email_id,
+                password=password1,
+                first_name=name.split()[0],
+                last_name=' '.join(name.split()[1:]) if len(name.split()) > 1 else ''
+            )
 
-        user_data = UserData.objects.create(
-            user=user,
-            roll_no=roll_no,
-            name=name,
-            phone_number=phone_number,
-            country=country,
-            state=state,
-            city=city,
-            batch=batch,
-            department=department,
-            email_id=email_id,
-            facebook=facebook,
-            instagram=instagram,
-            in_job=(current_status == 'job'),
-            present_address=present_address,
-            job_title=job_title if current_status == 'job' else None,
-            higher_study_uni_name=higher_study_uni_name if current_status == 'study' else None,
-            higher_study_uni_address=higher_study_uni_address if current_status == 'study' else None,
-            higher_study_field=higher_study_field if current_status == 'study' else None
-        )
+            user_data = UserData.objects.create(
+                user=user,
+                roll_no=roll_no,
+                name=name,
+                phone_number=phone_number,
+                country=country,
+                state=state,
+                city=city,
+                batch=batch,
+                department=department,
+                email_id=email_id,
+                facebook=facebook,
+                instagram=instagram,
+                in_job=(current_status == 'job'),
+                present_address=present_address,
+                job_title=job_title if current_status == 'job' else None,
+                higher_study_uni_name=higher_study_uni_name if current_status == 'study' else None,
+                higher_study_uni_address=higher_study_uni_address if current_status == 'study' else None,
+                higher_study_field=higher_study_field if current_status == 'study' else None
+            )
 
-        messages.success(request, "Account created successfully! Please wait for approval.")
-        return redirect('login')
+            messages.success(request, "Account created successfully! Please wait for approval.")
+            return redirect('login')
 
-    return render(request, 'signup.html')
+        return render(request, 'signup.html')
+    except Exception as e:
+        messages.error(str(e))
+        return redirect('/login')
 @login_required
 def alumni_map(request):
     # Fetch query parameters
@@ -313,3 +324,19 @@ def all_talks_view(request):
     page_obj = paginator.get_page(page_number)
 
     return render(request, 'all_talks.html', {'page_obj': page_obj, 'query': query})
+
+
+@login_required
+def donate_book_view(request):
+    if request.method == 'POST':
+        booktitle = request.POST.get('booktitle', '').strip()
+
+        if not booktitle:
+            messages.error(request, "Book title cannot be empty.")
+        else:
+            book = DonateBook(booktitle=booktitle, user=request.user)
+            book.save()
+            messages.success(request, "Thank you for your donation request. It will be reviewed shortly.")
+            return redirect('/donate-book/')
+
+    return render(request, 'donate_book.html')

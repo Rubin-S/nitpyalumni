@@ -33,5 +33,6 @@ urlpatterns = [
     path('add-job/', views.add_job_posting, name='add_job_posting'),
     path('all-jobs/', views.all_jobs_view, name='all_jobs'),
     path('volunteer-talk/', views.volunteer_talk_view, name='volunteer_talk'),
-    path('all-talks', views.all_talks_view)
+    path('all-talks', views.all_talks_view),
+    path("donate-book/", views.donate_book_view, name="donate_book"),
 ]

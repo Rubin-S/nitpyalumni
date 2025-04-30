@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Donate a Book{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <h2 class="mb-4">Donate a Book</h2>
+
+    <form method="post">
+        {% csrf_token %}
+        {% if messages %}
+          {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} text-center">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+        <div class="mb-3">
+            <label for="booktitle" class="form-label">Book Title</label>
+            <input type="text" class="form-control" id="booktitle" name="booktitle" placeholder="Enter the book title" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Submit Donation</button>
+    </form>
+</div>
+{% endblock %}

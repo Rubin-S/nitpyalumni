@@ -11,7 +11,7 @@ def send_creation_email(subject, message):
         message=message,
         from_email=settings.EMAIL_HOST_USER,
         recipient_list=recipient_list,
-        fail_silently=False,
+        fail_silently=True,
     )
 
 
@@ -26,12 +26,15 @@ class UserData(models.Model):
     city = models.CharField(max_length=100)
     batch = models.IntegerField()
     department = models.CharField(max_length=100)
+    degree = models.CharField(max_length=50, default="")
     email_id = models.EmailField()
+    linked_in = models.URLField(blank=True, null=True)
     facebook = models.URLField(blank=True, null=True)
     instagram = models.URLField(blank=True, null=True)
     in_job = models.BooleanField(default=False)
     present_address = models.TextField()
     job_title = models.CharField(max_length=255, blank=True, null=True)
+    job_address = models.CharField(max_length=500, blank=True, null=True)
     higher_study_uni_name = models.CharField(max_length=255, blank=True, null=True)
     higher_study_uni_address = models.CharField(max_length=255, blank=True, null=True)
     higher_study_field = models.CharField(max_length=255, blank=True, null=True)
@@ -146,3 +149,22 @@ class GetTranscriptRequest(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - Transcript Request"
+
+
+class DonateBook(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    booktitle = models.CharField(max_length=255)
+    is_approved = models.BooleanField(default=False)
+
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new:
+            if hasattr(self.user, 'userdata'):
+                send_creation_email(
+                    f"New Book Donation request by: {self.user.userdata.name}",
+                    "Kindly consider approving or rejecting it in admin panel"
+                )
+
+    def __str__(self):
+        return f"{self.booktitle} - {self.user.username}"
