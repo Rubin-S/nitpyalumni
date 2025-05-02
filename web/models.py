@@ -45,33 +45,49 @@ class UserData(models.Model):
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None
+        old_instance = None
 
-        # Only do geocoding for new users
-        if True:
-            address_query = f"{self.city}+{self.state}+{self.country}".replace(' ', '+')
-            api_key = "2db9f7b03e8e3e7257a9bbbfe027a636"
-            geocode_url = f"https://sierramaps.ftp.sh/api/geocoding/{address_query}/?api_key={api_key}"
+        # Fetch old instance to check if approval status changed
+        if not is_new:
+            old_instance = UserData.objects.get(pk=self.pk)
 
-            try:
-                response = requests.get(geocode_url)
-                if response.status_code == 200:
-                    data = response.json()
-                    if len(data.get("resourceSet", [])) > 0:
-                        first_result = data["resourceSet"][0]
-                        if "geo" in first_result:
-                            self.lat = Decimal(first_result["geo"]["latitude"])
-                            self.lng = Decimal(first_result["geo"]["longitude"])
-            except Exception as e:
-                # Silent fail or log error if needed
-                print(f"Geocoding failed: {e}")
+        address_query = f"{self.city}+{self.state}+{self.country}".replace(' ', '+')
+        api_key = "2db9f7b03e8e3e7257a9bbbfe027a636"
+        geocode_url = f"https://sierramaps.ftp.sh/api/geocoding/{address_query}/?api_key={api_key}"
+
+        try:
+            response = requests.get(geocode_url)
+            if response.status_code == 200:
+                data = response.json()
+                if len(data.get("resourceSet", [])) > 0:
+                    first_result = data["resourceSet"][0]
+                    if "geo" in first_result:
+                        self.lat = Decimal(first_result["geo"]["latitude"])
+                        self.lng = Decimal(first_result["geo"]["longitude"])
+        except Exception as e:
+            print(f"Geocoding failed: {e}")
 
         super().save(*args, **kwargs)
 
+        # Send creation email on new user
         if is_new:
             send_creation_email(
                 f"New User {self.name} has applied for alumni account",
                 f"A new user named: {self.name}, phone number: {self.phone_number} has applied. Kindly check admin panel to approve or reject the request"
             )
+
+        # Send approval email if status changed to approved
+        if old_instance and not old_instance.account_is_approved and self.account_is_approved:
+            send_mail(
+                subject="Your Alumni Account Has Been Approved",
+                message=f"Hi {self.name},\n\nYour alumni account has been approved. You can now log in and access all features.",
+                from_email=settings.EMAIL_HOST_USER,
+                recipient_list=[self.email_id],
+                fail_silently=True
+            )
+
+    def __str__(self):
+        return f"{self.name} ({self.roll_no})"
 
     def __str__(self):
         return f"{self.name} ({self.roll_no})"
