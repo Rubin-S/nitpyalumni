@@ -66,15 +66,15 @@ def signup_view(request):
             degree = request.POST.get('degree')
             department = request.POST.get('department')
             present_address = request.POST.get('present_address')
-            linked_id = request.POST.get('linkedin') or None
-            facebook = request.POST.get('facebook') or None
-            instagram = request.POST.get('instagram') or None
+            linked_id = request.POST.get('linkedin') or ""
+            facebook = request.POST.get('facebook') or ""
+            instagram = request.POST.get('instagram') or ""
             current_status = request.POST.get('current_status')
-            job_title = request.POST.get('job_title') or None
-            job_address = request.POST.get('job_address') or None
-            higher_study_uni_name = request.POST.get('higher_study_uni_name') or None
-            higher_study_uni_address = request.POST.get('higher_study_uni_address') or None
-            higher_study_field = request.POST.get('higher_study_field') or None
+            job_title = request.POST.get('job_title') or ""
+            job_address = request.POST.get('job_address') or ""
+            higher_study_uni_name = request.POST.get('higher_study_uni_name') or ""
+            higher_study_uni_address = request.POST.get('higher_study_uni_address') or ""
+            higher_study_field = request.POST.get('higher_study_field') or ""
             password1 = request.POST.get('password1')
             password2 = request.POST.get('password2')
 
@@ -417,6 +417,62 @@ def donate_book_view(request):
             book = DonateBook(booktitle=booktitle, user=request.user)
             book.save()
             messages.success(request, "Thank you for your donation request. It will be reviewed shortly.")
-            return redirect('/donate-book/')
+            return redirect('/home')
 
     return render(request, 'donate_book.html')
+
+
+
+
+# Profile page addded
+@login_required
+def profile_view(request):
+    user_data = UserData.objects.get(user=request.user)
+    is_approved = user_data.account_is_approved
+    if request.method == 'POST':
+        # Update fields from form input
+        user_data.name = request.POST['name']
+        user_data.roll_no = request.POST['roll_no']
+        user_data.phone_number = request.POST['phone_number']
+        user_data.email_id = request.POST['email_id']
+        user_data.country = request.POST['country']
+        user_data.state = request.POST['state']
+        user_data.city = request.POST['city']
+        user_data.batch = request.POST['batch']
+        user_data.degree = request.POST['degree']
+        user_data.department = request.POST['department']
+        user_data.present_address = request.POST['present_address']
+        user_data.linkedin = request.POST['linkedin']
+        user_data.facebook = request.POST['facebook']
+        user_data.instagram = request.POST['instagram']
+        user_data.current_status = request.POST['current_status']
+
+        # Optional fields based on status
+        if user_data.current_status == 'job':
+            user_data.job_title = request.POST.get('job_title', '')
+            user_data.job_address = request.POST.get('job_address', '')
+            user_data.higher_study_uni_name = ''
+            user_data.higher_study_uni_address = ''
+            user_data.higher_study_field = ''
+        elif user_data.current_status == 'study':
+            user_data.higher_study_uni_name = request.POST.get('higher_study_uni_name', '')
+            user_data.higher_study_uni_address = request.POST.get('higher_study_uni_address', '')
+            user_data.higher_study_field = request.POST.get('higher_study_field', '')
+            user_data.job_title = ''
+            user_data.job_address = ''
+        else:
+            user_data.job_title = ''
+            user_data.job_address = ''
+            user_data.higher_study_uni_name = ''
+            user_data.higher_study_uni_address = ''
+            user_data.higher_study_field = ''
+
+        user_data.save()
+        messages.success(request, "Your profile has been updated successfully.")
+        return redirect('profile')
+
+    return render(request, 'profile.html', {
+        'user_data': user_data,
+        "is_approved": is_approved
+    })
+

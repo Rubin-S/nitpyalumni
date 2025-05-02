@@ -35,4 +35,6 @@ urlpatterns = [
     path('volunteer-talk/', views.volunteer_talk_view, name='volunteer_talk'),
     path('all-talks', views.all_talks_view),
     path("donate-book/", views.donate_book_view, name="donate_book"),
+    path('profile/', views.profile_view, name='profile'),
+
 ]

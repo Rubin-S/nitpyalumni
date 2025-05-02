@@ -32,12 +32,12 @@
 
             <div class="mb-3">
                 <label class="form-label">Check-In Date & Time</label>
-                <input type="datetime-local" name="datetime_in" class="form-control" required>
+                <input type="datetime-local" name="datetime_in" class="form-control" id="datetime_in" required>
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Check-Out Date & Time</label>
-                <input type="datetime-local" name="datetime_out" class="form-control" required>
+                <input type="datetime-local" name="datetime_out" class="form-control" id="datetime_out" required>
             </div>
 
             <div class="text-center">
@@ -46,4 +46,29 @@
         </form>
     </div>
 </div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const now = new Date();
+        const future = new Date();
+        future.setDate(future.getDate() + 547); // ~1.5 years
+
+        const minDate = now.toISOString().slice(0, 16);
+        const maxDate = future.toISOString().slice(0, 16);
+
+        const datetimeIn = document.getElementById("datetime_in");
+        const datetimeOut = document.getElementById("datetime_out");
+
+        datetimeIn.min = minDate;
+        datetimeIn.max = maxDate;
+
+        datetimeOut.min = minDate;
+        datetimeOut.max = maxDate;
+
+        // Optional: auto-update check-out min when check-in selected
+        datetimeIn.addEventListener("change", function () {
+            datetimeOut.min = this.value;
+        });
+    });
+</script>
 {% endblock %}

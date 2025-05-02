@@ -46,18 +46,14 @@
   }).addTo(map);
 
   let lastSearchQuery = '';
+  const currentUserId = {{ request.user.pk|default:"null" }};
 
   function fetchAlumni(triggeredBy = 'map') {
     const bounds = map.getBounds();
     const search = document.getElementById('searchInput').value.trim();
 
-    // Avoid re-fetching on map move if a search is already active
     if (search !== '' && triggeredBy === 'map') return;
-
-    // Avoid redundant search fetch if the text hasn't changed
     if (search === lastSearchQuery && triggeredBy === 'search') return;
-
-    // Update last known query
     if (triggeredBy === 'search') lastSearchQuery = search;
 
     const url = `?south=${bounds.getSouth()}&west=${bounds.getWest()}&north=${bounds.getNorth()}&east=${bounds.getEast()}&search=${encodeURIComponent(search)}`;
@@ -71,7 +67,6 @@
       const tbody = document.querySelector('#alumniTable tbody');
       tbody.innerHTML = '';
 
-      // Move map only when it's a search and has at least one result
       if (search !== '' && data.alumni.length > 0 && triggeredBy === 'search') {
         const first = data.alumni[0];
         map.setView([first.lat, first.lng], map.getZoom());
@@ -82,19 +77,25 @@
           .bindPopup(`<b>${alumni.name}</b><br>${alumni.department}<br>${alumni.job_title}`);
         markerGroup.addLayer(marker);
 
+        const isCurrentUser = currentUserId === alumni.id;
+
+        const nameText = isCurrentUser ? `${alumni.name} (You)` : alumni.name;
+        const contactHTML = isCurrentUser
+          ? `<span class="badge bg-secondary">This is you</span>`
+          : `<a href="/contact-alumni/${alumni.id}" class="btn btn-sm btn-outline-primary">Contact</a>`;
+
         const row = `<tr>
-          <td>${alumni.name}</td>
+          <td>${nameText}</td>
           <td>${alumni.batch}</td>
           <td>${alumni.department}</td>
           <td>${alumni.job_title}</td>
-          <td><a href="/contact-alumni/${alumni.id}" class="btn btn-sm btn-outline-primary">Contact</a></td>
+          <td>${contactHTML}</td>
         </tr>`;
         tbody.insertAdjacentHTML('beforeend', row);
       });
     });
   }
 
-  // Debounce function
   function debounce(func, delay) {
     let timeout;
     return function (...args) {

@@ -52,12 +52,11 @@ CSRF_TRUSTED_ORIGINS = [
 
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_HOST = "mail.nitpy.ac.in"
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-
-EMAIL_HOST_USER = 'nitpyalum@gmail.com'
-EMAIL_HOST_PASSWORD = 'mvjr htdy hyzr mrkf'
+EMAIL_HOST_USER = "alumni@nitpy.ac.in"
+EMAIL_HOST_PASSWORD = "Alumni@nitpy"
 
 
 MIDDLEWARE = [
