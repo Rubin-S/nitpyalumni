@@ -27,8 +27,11 @@ class UserDataAdmin(admin.ModelAdmin):
     list_filter = ('account_is_approved', 'batch', 'department', 'in_job', 'country', 'state', 'city')
     search_fields = ('user__username', 'name', 'roll_no', 'email_id', 'phone_number')
     ordering = ('batch', 'department', 'name')
-    actions = [export_as_csv]
-
+    @admin.action(description="Approve selected users")
+    def approve_selected(modeladmin, request, queryset):
+        queryset.update(account_is_approved=True)
+    actions = [export_as_csv, approve_selected]
+    
 # JobPosting Admin
 @admin.register(JobPosting)
 class JobPostingAdmin(admin.ModelAdmin):
