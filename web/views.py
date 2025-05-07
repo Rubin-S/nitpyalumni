@@ -161,7 +161,8 @@ def alumni_map(request):
             lat__gte=south,
             lat__lte=north,
             lng__gte=west,
-            lng__lte=east
+            lng__lte=east,
+            account_is_approved=True
         )
     if search_query:
         alumni_queryset = UserData.objects.all().filter(
