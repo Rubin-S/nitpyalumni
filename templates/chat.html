@@ -2,185 +2,237 @@
 {% load static %}
 
 {% block content %}
-<div class="container py-3">
-  <div class="card shadow-sm">
-    <div class="card-header bg-primary text-white">
-      <h5 class="mb-0">{{ rc.name }}</h5>
-    </div>
-    <div id="chat-box" class="card-body" style="height: 500px; overflow-y: auto; background-color: #f1f1f1;">
-        
-</div>
-<div id="date-popup" class="position-absolute px-3 py-1 bg-secondary text-white rounded shadow-sm" 
-     style="top: 10px; left: 50%; transform: translateX(-50%); display: none; z-index: 10; opacity: 0.9; font-size: 0.9rem;">
+<style>
+  body {
+    background-color: #f0f2f5;
+  }
+  .chat-container {
+    max-width: 700px;
+    margin: auto;
+    padding: 1rem 0;
+  }
+  .chat-card {
+    height: 90vh;
+    display: flex;
+    flex-direction: column;
+    border-radius: 10px;
+  }
+  #chat-box {
+    flex-grow: 1;
+    overflow-y: auto;
+    background-color: #e5ddd5;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .chat-bubble {
+    max-width: 75%;
+    padding: 0.75rem 1rem;
+    border-radius: 20px;
+    position: relative;
+    word-wrap: break-word;
+    font-size: 0.95rem;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  }
+  .sent {
+    background-color: #dcf8c6;
+    align-self: flex-end;
+  }
+  .received {
+    background-color: #fff;
+    align-self: flex-start;
+  }
+  .chat-time {
+    font-size: 0.7rem;
+    color: #666;
+    text-align: right;
+    margin-top: 4px;
+  }
+  .chat-footer {
+    display: flex;
+    padding: 0.75rem;
+    background-color: #f8f9fa;
+    border-top: 1px solid #ddd;
+  }
+  #chat-input {
+    flex-grow: 1;
+  }
+  #date-popup {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: none;
+    background: #6c757d;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 6px;
+    z-index: 1000;
+    opacity: 0.9;
+    font-size: 0.85rem;
+  }
+</style>
 
-      <!-- Messages will be appended here -->
+<div class="container chat-container">
+  <div class="card shadow chat-card position-relative">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">{{ rc.name }}</h5>
+      <button id="toggle-theme" class="btn btn-sm btn-outline-light">🌙</button>
     </div>
-    <div class="card-footer d-flex">
-      <input type="text" id="chat-input" class="form-control me-2" placeholder="Type a message..." />
+
+    <div id="chat-box"></div>
+
+    <div id="date-popup"></div>
+
+    <div class="chat-footer">
+      <input type="text" id="chat-input" class="form-control me-2" placeholder="Type a message...">
       <button id="send-btn" class="btn btn-success">Send</button>
     </div>
   </div>
 </div>
-<script>
-    const otherUserId = "{{ other_user_id }}";
-    const userId = "{{ user.id }}";
-    const csrfToken = '{{ csrf_token }}';
-  
-    let offset = 0;
-    let allLoaded = false;
-  
-    const chatBox = document.getElementById('chat-box');
-  
-    const renderedDateLabels = new Set();
 
-    function formatDateLabel(dateStr) {
-      const msgDate = new Date(dateStr);
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const yesterday = new Date(today);
-      yesterday.setDate(today.getDate() - 1);
-    
-      const msgDay = new Date(msgDate.getFullYear(), msgDate.getMonth(), msgDate.getDate());
-    
-      if (msgDay.getTime() === today.getTime()) return "Today";
-      if (msgDay.getTime() === yesterday.getTime()) return "Yesterday";
-    
-      return (msgDate.getFullYear() === now.getFullYear())
-        ? msgDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' })     // dd-MM
-        : msgDate.toLocaleDateString('en-GB');                                           // dd-MM-yyyy
-    }
-    
-    function showDatePopup(datetimeStr) {
-        const label = formatDateLabel(datetimeStr);
-        const popup = document.getElementById('date-popup');
-      
-        popup.textContent = label;
-        popup.style.display = 'block';
-      
-        clearTimeout(popup.dataset.timer);  // Cancel any previous timeout
-      
-        popup.dataset.timer = setTimeout(() => {
-          popup.style.display = 'none';
-        }, 3000);
-      }
-      
-  
-    function appendMessage(msg, isSender) {
-        showDatePopup(msg.datetime_sent);
-      const bubble = document.createElement('div');
-      bubble.className = `mb-2 d-flex ${isSender ? 'justify-content-end' : 'justify-content-start'}`;
-      bubble.innerHTML = `
-        <div class="p-2 rounded" style="max-width: 75%; background-color: ${isSender ? '#DCF8C6' : '#FFF'};">
-          <div>${msg.text}</div>
-          <small class="text-muted">${new Date(msg.datetime_sent).toLocaleTimeString()}</small>
-        </div>`;
-      chatBox.appendChild(bubble);
-      chatBox.scrollTop = chatBox.scrollHeight;
-    }
-  
-    function prependMessage(msg) {
-      const isSender = msg.sender_id === userId;
-      const scrollOffset = chatBox.scrollHeight - chatBox.scrollTop;
-  
-      const bubble = document.createElement('div');
-      bubble.className = `mb-2 d-flex ${isSender ? 'justify-content-end' : 'justify-content-start'}`;
-      bubble.innerHTML = `
-        <div class="p-2 rounded" style="max-width: 75%; background-color: ${isSender ? '#DCF8C6' : '#FFF'};">
-          <div>${msg.text}</div>
-          <small class="text-muted">${new Date(msg.datetime_sent).toLocaleTimeString()}</small>
-        </div>`;
-  
-        showDatePopup(msg.datetime_sent);
-      chatBox.insertBefore(bubble, chatBox.firstChild);
-      chatBox.scrollTop = chatBox.scrollHeight - scrollOffset;
-    }
-  
-    function loadInitialMessages() {
-      fetch(`/chat/${otherUserId}/load?offset=${offset}`)
-        .then(response => response.json())
-        .then(data => {
-          if (data.messages.length === 0) {
-            const noMsg = document.createElement('div');
-            noMsg.className = "text-center text-muted my-3";
-            noMsg.textContent = "This is the start of your conversation.";
-            chatBox.appendChild(noMsg);
-            allLoaded = true;
-            return;
-          }
-  
+<script>
+  const otherUserId = "{{ other_user_id }}";
+  const userId = "{{ user.id }}";
+  const csrfToken = "{{ csrf_token }}";
+
+  let offset = 0;
+  let allLoaded = false;
+  const chatBox = document.getElementById("chat-box");
+
+  function formatDateLabel(dateStr) {
+    const msgDate = new Date(dateStr);
+    const today = new Date();
+    const yest = new Date();
+    yest.setDate(today.getDate() - 1);
+
+    const msgOnlyDate = new Date(msgDate.getFullYear(), msgDate.getMonth(), msgDate.getDate());
+    const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const yestDate = new Date(yest.getFullYear(), yest.getMonth(), yest.getDate());
+
+    if (msgOnlyDate.getTime() === todayDate.getTime()) return "Today";
+    if (msgOnlyDate.getTime() === yestDate.getTime()) return "Yesterday";
+    return msgDate.toLocaleDateString('en-GB');
+  }
+
+  function showDatePopup(dateTimeStr) {
+    const label = formatDateLabel(dateTimeStr);
+    const popup = document.getElementById("date-popup");
+    popup.textContent = label;
+    popup.style.display = "block";
+    clearTimeout(popup.dataset.timer);
+    popup.dataset.timer = setTimeout(() => popup.style.display = "none", 3000);
+  }
+
+  function appendMessage(msg, isSender) {
+    showDatePopup(msg.datetime_sent);
+    const bubble = document.createElement("div");
+    bubble.className = `chat-bubble ${isSender ? 'sent' : 'received'}`;
+    bubble.innerHTML = `
+      <div>${msg.text}</div>
+      <div class="chat-time">${new Date(msg.datetime_sent).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+    `;
+    chatBox.appendChild(bubble);
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }
+
+  function prependMessage(msg) {
+    const isSender = msg.sender_id === userId;
+    const scrollOffset = chatBox.scrollHeight - chatBox.scrollTop;
+    const bubble = document.createElement("div");
+    bubble.className = `chat-bubble ${isSender ? 'sent' : 'received'}`;
+    bubble.innerHTML = `
+      <div>${msg.text}</div>
+      <div class="chat-time">${new Date(msg.datetime_sent).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+    `;
+    showDatePopup(msg.datetime_sent);
+    chatBox.insertBefore(bubble, chatBox.firstChild);
+    chatBox.scrollTop = chatBox.scrollHeight - scrollOffset;
+  }
+
+  function loadInitialMessages() {
+    fetch(`/chat/${otherUserId}/load?offset=${offset}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.messages.length === 0) {
+          chatBox.innerHTML = `<div class="text-center text-muted">Start of conversation</div>`;
+          allLoaded = true;
+        } else {
           data.messages.forEach(msg => appendMessage(msg, msg.sender_id === userId));
           offset += data.messages.length;
-        });
-    }
-  
-    function loadOlderMessages() {
-      if (allLoaded) return;
-      const prevScrollHeight = chatBox.scrollHeight;
-  
-      fetch(`/chat/${otherUserId}/load?offset=${offset}`)
-        .then(response => response.json())
-        .then(data => {
-          if (data.messages.length === 0) {
-            const noMsg = document.createElement('div');
-            noMsg.className = "text-center text-muted my-3";
-            noMsg.textContent = "This is the start of your conversation.";
-            chatBox.insertBefore(noMsg, chatBox.firstChild);
-            allLoaded = true;
-            return;
+        }
+      });
+  }
+
+  function loadOlderMessages() {
+    if (allLoaded) return;
+    const prevHeight = chatBox.scrollHeight;
+    fetch(`/chat/${otherUserId}/load?offset=${offset}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.messages.length === 0) {
+          allLoaded = true;
+          return;
+        }
+        data.messages.forEach(prependMessage);
+        offset += data.messages.length;
+        chatBox.scrollTop = chatBox.scrollHeight - prevHeight;
+      });
+  }
+
+  function pollNewMessages() {
+    fetch(`/chat/${otherUserId}/update`)
+      .then(res => res.json())
+      .then(data => {
+        data.messages.forEach(msg => {
+          if (!msg.is_seen) {
+            appendMessage(msg, false);
           }
-  
-          data.messages.forEach(msg => prependMessage(msg));
-          offset += data.messages.length;
         });
-    }
-    function pollNewMessages() {
-        fetch(`/chat/${otherUserId}/update`)
-          .then(response => response.json())
-          .then(data => {
-            data.messages.forEach(msg => {
-              if (msg.is_seen === false) {
-                appendMessage(msg, false);
-              }
-            });
-          })
-          .catch(err => console.error('Error fetching new messages:', err));
-      }
-      
-    function sendMessage() {
-      const input = document.getElementById('chat-input');
-      const text = input.value.trim();
-      if (!text) return;
-  
-      fetch(`/chat/${otherUserId}/add_message`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': csrfToken
-        },
-        body: JSON.stringify({ text: text })
-      })
-        .then(response => response.json())
-        .then(() => {
-          appendMessage({ text: text, datetime_sent: new Date() }, true);
-          input.value = '';
-        });
-    }
-  
-    // Event Listeners
-    document.getElementById('send-btn').addEventListener('click', sendMessage);
-    document.getElementById('chat-input').addEventListener('keypress', e => {
-      if (e.key === 'Enter') sendMessage();
+      });
+  }
+
+  function sendMessage() {
+    const input = document.getElementById("chat-input");
+    const text = input.value.trim();
+    if (!text) return;
+
+    fetch(`/chat/${otherUserId}/add_message`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken
+      },
+      body: JSON.stringify({ text })
+    })
+    .then(res => res.json())
+    .then(() => {
+      appendMessage({ text, datetime_sent: new Date() }, true);
+      input.value = "";
     });
-  
-    chatBox.addEventListener('scroll', () => {
-      if (chatBox.scrollTop === 0 && !allLoaded) {
-        loadOlderMessages();
-      }
+  }
+
+  document.getElementById("send-btn").addEventListener("click", sendMessage);
+  document.getElementById("chat-input").addEventListener("keypress", e => {
+    if (e.key === "Enter") sendMessage();
+  });
+
+  chatBox.addEventListener("scroll", () => {
+    if (chatBox.scrollTop === 0 && !allLoaded) loadOlderMessages();
+  });
+
+  document.getElementById("toggle-theme").addEventListener("click", () => {
+    document.body.classList.toggle("bg-dark");
+    document.body.classList.toggle("text-white");
+    document.querySelectorAll('.chat-bubble').forEach(b => {
+      b.classList.toggle("bg-dark");
+      b.classList.toggle("text-white");
     });
-  
-    // Boot
-    loadInitialMessages();
-    setInterval(pollNewMessages, 5000);
-    
-  </script>
-  {% endblock %}
+  });
+
+  // Init
+  loadInitialMessages();
+  setInterval(pollNewMessages, 5000);
+</script>
+{% endblock %}
