@@ -2,13 +2,73 @@
 {% load static %}
 
 {% block content %}
-<div class="container py-4">
-  <div class="card shadow-sm">
-    <div class="card-header bg-dark text-white">
+<style>
+  body {
+    background-color: #f0f2f5;
+  }
+
+  .chat-list-container {
+    max-width: 700px;
+    margin: auto;
+    padding-top: 2rem;
+  }
+
+  .chat-card {
+    border-radius: 12px;
+  }
+
+  .chat-header {
+    background-color: #212529;
+    color: white;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    padding: 1rem 1.25rem;
+  }
+
+  .chat-user-name {
+    font-weight: 600;
+    font-size: 1.05rem;
+  }
+
+  .chat-item {
+    transition: background-color 0.2s;
+  }
+
+  .chat-item:hover {
+    background-color: #f8f9fa;
+  }
+
+  .chat-link {
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    align-items: center;
+    width: 100%;
+  }
+
+  .chat-badge {
+    font-size: 0.75rem;
+    padding: 4px 8px;
+    margin-left: 8px;
+  }
+
+  .chat-timestamp {
+    font-size: 0.8rem;
+    color: #6c757d;
+  }
+
+  .chat-name-row {
+    display: flex;
+    align-items: center;
+  }
+</style>
+
+<div class="container chat-list-container">
+  <div class="card shadow chat-card">
+    <div class="chat-header">
       <h4 class="mb-0">Your Chats</h4>
     </div>
     <ul class="list-group list-group-flush" id="chat-list">
-      <!-- Chats will be loaded here dynamically -->
       <li class="list-group-item text-muted">Loading chats...</li>
     </ul>
   </div>
@@ -19,64 +79,71 @@
     try {
       const response = await fetch('/chats/partial');
       const data = await response.json();
-
-      console.log(data)
-
       const chatList = document.getElementById('chat-list');
-      chatList.innerHTML = '';  // Clear existing chats
+      chatList.innerHTML = '';
 
       if (data.chats && data.chats.length > 0) {
         data.chats.forEach(chat => {
-          // Create chat list item
           const li = document.createElement('li');
-          li.className = 'list-group-item d-flex justify-content-between align-items-center';
+          li.className = 'list-group-item chat-item';
 
           const a = document.createElement('a');
           a.href = `/chat/${chat.other_user_id}`;
-          a.className = 'text-decoration-none text-dark w-100 d-flex align-items-center';
+          a.className = 'chat-link';
 
-          const div = document.createElement('div');
-          div.className = 'flex-grow-1';
+          const contentDiv = document.createElement('div');
+          contentDiv.className = 'flex-grow-1';
+
+          const nameRow = document.createElement('div');
+          nameRow.className = 'chat-name-row';
 
           if (chat.has_unseen) {
-            const strong = document.createElement('strong');
-            strong.textContent = chat.name;
+            const nameStrong = document.createElement('strong');
+            nameStrong.className = 'chat-user-name';
+            nameStrong.textContent = chat.name;
 
-            const badge = document.createElement('span');
-            badge.className = 'badge bg-danger ms-2';
-            badge.textContent = 'New';
+            const newBadge = document.createElement('span');
+            newBadge.className = 'badge bg-danger chat-badge';
+            newBadge.textContent = 'New';
 
-            div.appendChild(strong);
-            div.appendChild(badge);
-            div.appendChild(document.createElement('br'));
+            nameRow.appendChild(nameStrong);
+            nameRow.appendChild(newBadge);
           } else {
-            div.textContent = chat.name;
-            div.appendChild(document.createElement('br'));
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'chat-user-name';
+            nameDiv.textContent = chat.name;
+            nameRow.appendChild(nameDiv);
           }
 
-          const small = document.createElement('small');
-          small.className = 'text-muted';
-          small.textContent = new Date(chat.last_message_time).toLocaleString('en-US', {
-            month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit'
+          const timestamp = document.createElement('div');
+          timestamp.className = 'chat-timestamp';
+          timestamp.textContent = new Date(chat.last_message_time).toLocaleString('en-US', {
+            month: 'short',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
           });
 
-          div.appendChild(small);
-          a.appendChild(div);
+          contentDiv.appendChild(nameRow);
+          contentDiv.appendChild(timestamp);
+          a.appendChild(contentDiv);
           li.appendChild(a);
           chatList.appendChild(li);
         });
       } else {
         chatList.innerHTML = '<li class="list-group-item text-muted">No chats found.</li>';
       }
-    } catch (err) {
-      console.error('Failed to fetch chats:', err);
+    } catch (error) {
+      console.error('Failed to fetch chats:', error);
+      const chatList = document.getElementById('chat-list');
+      chatList.innerHTML = '<li class="list-group-item text-danger">Failed to load chats.</li>';
     }
   }
 
   // Initial load
   fetchChats();
 
-  // Poll every 2 seconds
+  // Auto-refresh every 2 seconds
   setInterval(fetchChats, 2000);
 </script>
 {% endblock %}
