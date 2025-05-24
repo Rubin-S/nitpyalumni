@@ -16,6 +16,15 @@ from django.template.loader import render_to_string
 from django.db.models import Q
 from django.db.models import Prefetch
 from django.http import JsonResponse
+from django.shortcuts import render
+from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
+from django.utils.timezone import now
+import json, hashlib
+from pymongo import MongoClient
+
 def index(request):
     if request.user.is_authenticated:
         user = UserData.objects.get(user=request.user)
@@ -183,7 +192,6 @@ def alumni_map(request):
             Q(higher_study_uni_address__icontains=search_query) |
             Q(higher_study_field__icontains=search_query)
         )
-        print(alumni_queryset)
 
     # AJAX response for map-based query
     if request.headers.get('x-requested-with') == 'XMLHttpRequest':
@@ -299,7 +307,7 @@ def contact_alumni(request, user_id):
             messages.success(request, "Your Message is sent successfully")
 
             return redirect('/alumni-map')  # Redirect to a success page after sending
-        return render(request, 'contact_alumni.html', {'receiver': receiver})
+        return redirect(f'/chat/{receiver.user.id}/')
     except Exception as e:
         return redirect('/')
 
@@ -476,4 +484,216 @@ def profile_view(request):
         'user_data': user_data,
         "is_approved": is_approved
     })
+
+
+
+
+
+# CHAT FEATURE Added by Darshitha EE23B1033
+
+
+
+
+client = MongoClient("mongodb+srv://chatbot:chatbot117@cluster0.lxwem4m.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
+db = client["ChatDB"]
+# count number of unread DMs
+def undread_dm(request):
+    user_id = str(request.user.id)
+    metadata = db.UserMetaData.find_one({"user_id": user_id})
+    chat_list = metadata.get("chats", []) if metadata else []
+
+    # Sort chats by last_message_time
+    chat_list.sort(key=lambda x: x["last_message_time"], reverse=True)
+
+    for chat in chat_list:
+        other_user_id = chat.get("other_user_id")
+        try:
+            other_user = User.objects.get(id=other_user_id)
+            user_data = UserData.objects.get(user=other_user)
+            chat["name"] = user_data.name
+        except (User.DoesNotExist, UserData.DoesNotExist):
+            chat["name"] = "Deleted Account"
+
+        # Check if there are any unseen messages from other_user_id to current user
+        chat_key = get_chat_key(user_id, other_user_id)
+        unseen_count = db.Chats.count_documents({
+            "chat_key": chat_key,
+            "receiver_id": user_id,
+            "sender_id": other_user_id,
+            "is_seen": False
+        })
+        return JsonResponse({"count":unseen_count})
+# Chat Key Generator
+def get_chat_key(uid1, uid2):
+    h1 = hashlib.md5(uid1.encode()).hexdigest()
+    h2 = hashlib.md5(uid2.encode()).hexdigest()
+    return str(int(h1, 16) ^ int(h2, 16))
+
+def update_user_metadata(user_id, other_user_id):
+    result = db.UserMetaData.update_one(
+        {"user_id": user_id, "chats.other_user_id": other_user_id},
+        {"$set": {"chats.$.last_message_time": now()}}
+    )
+    if result.matched_count == 0:
+        db.UserMetaData.update_one(
+            {"user_id": user_id},
+            {"$push": {"chats": {
+                "other_user_id": other_user_id,
+                "last_message_time": now()
+            }}},
+            upsert=True
+        )
+# 1. /chats
+@login_required
+def chats(request):
+    user_id = str(request.user.id)
+    metadata = db.UserMetaData.find_one({"user_id": user_id})
+    chat_list = metadata.get("chats", []) if metadata else []
+
+    # Sort chats by last_message_time
+    chat_list.sort(key=lambda x: x["last_message_time"], reverse=True)
+
+    for chat in chat_list:
+        other_user_id = chat.get("other_user_id")
+        try:
+            other_user = User.objects.get(id=other_user_id)
+            user_data = UserData.objects.get(user=other_user)
+            chat["name"] = user_data.name
+        except (User.DoesNotExist, UserData.DoesNotExist):
+            chat["name"] = "Deleted Account"
+
+        # Check if there are any unseen messages from other_user_id to current user
+        chat_key = get_chat_key(user_id, other_user_id)
+        unseen_count = db.Chats.count_documents({
+            "chat_key": chat_key,
+            "receiver_id": user_id,
+            "sender_id": other_user_id,
+            "is_seen": False
+        })
+        chat["has_unseen"] = (unseen_count > 0)
+
+    try:
+        u = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return redirect("chats")
+
+    reciever = UserData.objects.get(user=u)
+    name = reciever.name
+
+    return render(request, "chats.html", {"chats": chat_list, "name": name})
+
+# 2. /chat/<user_id>
+@login_required
+def chat_view(request, user_id):
+    if request.user.id == int(user_id):
+        return redirect("chats")
+    try:
+        u = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return redirect("chats")  # Assuming you named the URL pattern 'chats'
+    reciever = UserData.objects.get(user=u)
+    return render(request, "chat.html", {"other_user_id": user_id, "rc": reciever})
+
+# 3. /chat/<user_id>/load
+@login_required
+def load_messages(request, user_id):
+    offset = int(request.GET.get("offset", 0))
+    chat_key = get_chat_key(str(request.user.id), user_id)
+
+    messages = list(db.Chats.find({"chat_key": chat_key})
+                    .sort("datetime_sent", -1)
+                    .skip(offset)
+                    .limit(20))
+
+    for msg in messages:
+        msg["_id"] = str(msg["_id"])
+    
+    if offset>=20:
+        return JsonResponse({"messages": list((messages))})  # latest below
+
+    return JsonResponse({"messages": list(reversed(messages))})  # latest below
+
+# 4. /chat/<user_id>/update
+@login_required
+def update_messages(request, user_id):
+    chat_key = get_chat_key(str(request.user.id), user_id)
+
+    unseen_messages = list(db.Chats.find({
+        "chat_key": chat_key,
+        "receiver_id": str(request.user.id),
+        "is_seen": False
+    }))
+
+    for msg in unseen_messages:
+        db.Chats.update_one(
+            {"_id": msg["_id"]},
+            {"$set": {"is_seen": True, "seen_time": now()}}
+        )
+        msg["_id"] = str(msg["_id"])
+
+    return JsonResponse({"messages": unseen_messages})
+
+# 5. /chat/<user_id>/add_message
+@csrf_exempt
+@login_required
+@require_POST
+def add_message(request, user_id):
+    data = json.loads(request.body)
+    chat_key = get_chat_key(str(request.user.id), user_id)
+
+    message = {
+        "chat_key": chat_key,
+        "sender_id": str(request.user.id),
+        "receiver_id": user_id,
+        "text": data["text"],
+        "datetime_sent": now(),
+        "is_seen": False,
+        "seen_time": None
+    }
+
+    db.Chats.insert_one(message)
+
+    update_user_metadata(str(request.user.id), user_id)
+    update_user_metadata(user_id, str(request.user.id))
+
+    return JsonResponse({"status": "success"})
+
+
+@login_required
+def chats_partial(request):
+    user_id = str(request.user.id)
+    metadata = db.UserMetaData.find_one({"user_id": user_id})
+    chat_list = metadata.get("chats", []) if metadata else []
+
+    # Sort chats by last_message_time
+    chat_list.sort(key=lambda x: x["last_message_time"], reverse=True)
+
+    for chat in chat_list:
+        other_user_id = chat.get("other_user_id")
+        try:
+            other_user = User.objects.get(id=other_user_id)
+            user_data = UserData.objects.get(user=other_user)
+            chat["name"] = user_data.name
+        except (User.DoesNotExist, UserData.DoesNotExist):
+            chat["name"] = "Deleted Account"
+
+        # Check if there are any unseen messages from other_user_id to current user
+        chat_key = get_chat_key(user_id, other_user_id)
+        unseen_count = db.Chats.count_documents({
+            "chat_key": chat_key,
+            "receiver_id": user_id,
+            "sender_id": other_user_id,
+            "is_seen": False
+        })
+        chat["has_unseen"] = (unseen_count > 0)
+
+    try:
+        u = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return redirect("chats")
+
+    reciever = UserData.objects.get(user=u)
+    name = reciever.name
+
+    return JsonResponse({"chats": chat_list, "name": name})
 

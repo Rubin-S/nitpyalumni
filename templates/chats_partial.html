@@ -1,0 +1,19 @@
+{% if chats %}
+  {% for chat in chats %}
+  <li class="list-group-item d-flex justify-content-between align-items-center">
+    <a href="/chat/{{ chat.other_user_id }}" class="text-decoration-none text-dark w-100 d-flex align-items-center">
+      <div class="flex-grow-1">
+        {% if chat.has_unseen %}
+          <strong>{{ chat.name }}</strong>
+          <span class="badge bg-danger ms-2">New</span><br>
+        {% else %}
+          {{ chat.name }}<br>
+        {% endif %}
+        <small class="text-muted">{{ chat.last_message_time|date:"M d, H:i" }}</small>
+      </div>
+    </a>
+  </li>
+  {% endfor %}
+{% else %}
+  <li class="list-group-item text-muted">No chats found.</li>
+{% endif %}
