@@ -36,5 +36,12 @@ urlpatterns = [
     path('all-talks', views.all_talks_view),
     path("donate-book/", views.donate_book_view, name="donate_book"),
     path('profile/', views.profile_view, name='profile'),
+    path('chats/', views.chats, name='chats'),
+    path('chat/<str:user_id>/', views.chat_view, name='chat_view'),
+    path('chat/<str:user_id>/load', views.load_messages, name='load_messages'),
+    path('chat/<str:user_id>/update', views.update_messages, name='update_messages'),
+    path('chat/<str:user_id>/add_message', views.add_message, name='add_message'),
+    path('chats/partial/', views.chats_partial, name="chats_partial"),
+    path('chats/undreaddm/', views.undread_dm, name="undreaddm")
 
 ]
