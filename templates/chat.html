@@ -28,49 +28,47 @@
   
     let offset = 0;
     let allLoaded = false;
-    const chatBox = document.getElementById('chat-box');
-    const renderedMessages = new Set();
   
-    // ======== Utility Functions ========
+    const chatBox = document.getElementById('chat-box');
+  
+    const renderedDateLabels = new Set();
+
     function formatDateLabel(dateStr) {
       const msgDate = new Date(dateStr);
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const yesterday = new Date(today);
       yesterday.setDate(today.getDate() - 1);
-  
+    
       const msgDay = new Date(msgDate.getFullYear(), msgDate.getMonth(), msgDate.getDate());
-  
+    
       if (msgDay.getTime() === today.getTime()) return "Today";
       if (msgDay.getTime() === yesterday.getTime()) return "Yesterday";
-  
+    
       return (msgDate.getFullYear() === now.getFullYear())
-        ? msgDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' })
-        : msgDate.toLocaleDateString('en-GB');
+        ? msgDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' })     // dd-MM
+        : msgDate.toLocaleDateString('en-GB');                                           // dd-MM-yyyy
     }
-  
+    
     function showDatePopup(datetimeStr) {
-      const label = formatDateLabel(datetimeStr);
-      const popup = document.getElementById('date-popup');
-      popup.textContent = label;
-      popup.style.display = 'block';
+        const label = formatDateLabel(datetimeStr);
+        const popup = document.getElementById('date-popup');
+      
+        popup.textContent = label;
+        popup.style.display = 'block';
+      
+        clearTimeout(popup.dataset.timer);  // Cancel any previous timeout
+      
+        popup.dataset.timer = setTimeout(() => {
+          popup.style.display = 'none';
+        }, 3000);
+      }
+      
   
-      clearTimeout(popup.dataset.timer);
-      popup.dataset.timer = setTimeout(() => {
-        popup.style.display = 'none';
-      }, 3000);
-    }
-  
-    // ======== Message Rendering ========
     function appendMessage(msg, isSender) {
-      if (renderedMessages.has(msg._id)) return;
-      renderedMessages.add(msg._id);
-  
-      showDatePopup(msg.datetime_sent);
-  
+        showDatePopup(msg.datetime_sent);
       const bubble = document.createElement('div');
       bubble.className = `mb-2 d-flex ${isSender ? 'justify-content-end' : 'justify-content-start'}`;
-      bubble.setAttribute('data-id', msg._id);
       bubble.innerHTML = `
         <div class="p-2 rounded" style="max-width: 75%; background-color: ${isSender ? '#DCF8C6' : '#FFF'};">
           <div>${msg.text}</div>
@@ -81,27 +79,22 @@
     }
   
     function prependMessage(msg) {
-      if (renderedMessages.has(msg._id)) return;
-      renderedMessages.add(msg._id);
-  
       const isSender = msg.sender_id === userId;
       const scrollOffset = chatBox.scrollHeight - chatBox.scrollTop;
   
       const bubble = document.createElement('div');
       bubble.className = `mb-2 d-flex ${isSender ? 'justify-content-end' : 'justify-content-start'}`;
-      bubble.setAttribute('data-id', msg._id);
       bubble.innerHTML = `
         <div class="p-2 rounded" style="max-width: 75%; background-color: ${isSender ? '#DCF8C6' : '#FFF'};">
           <div>${msg.text}</div>
           <small class="text-muted">${new Date(msg.datetime_sent).toLocaleTimeString()}</small>
         </div>`;
   
-      showDatePopup(msg.datetime_sent);
+        showDatePopup(msg.datetime_sent);
       chatBox.insertBefore(bubble, chatBox.firstChild);
       chatBox.scrollTop = chatBox.scrollHeight - scrollOffset;
     }
   
-    // ======== Loaders ========
     function loadInitialMessages() {
       fetch(`/chat/${otherUserId}/load?offset=${offset}`)
         .then(response => response.json())
@@ -140,21 +133,19 @@
           offset += data.messages.length;
         });
     }
-  
     function pollNewMessages() {
-      fetch(`/chat/${otherUserId}/update`)
-        .then(response => response.json())
-        .then(data => {
-          data.messages.forEach(msg => {
-            if (!renderedMessages.has(msg._id) && msg.is_seen === false) {
-              appendMessage(msg, false);
-            }
-          });
-        })
-        .catch(err => console.error('Error fetching new messages:', err));
-    }
-  
-    // ======== Sending Message ========
+        fetch(`/chat/${otherUserId}/update`)
+          .then(response => response.json())
+          .then(data => {
+            data.messages.forEach(msg => {
+              if (msg.is_seen === false) {
+                appendMessage(msg, false);
+              }
+            });
+          })
+          .catch(err => console.error('Error fetching new messages:', err));
+      }
+      
     function sendMessage() {
       const input = document.getElementById('chat-input');
       const text = input.value.trim();
@@ -169,13 +160,13 @@
         body: JSON.stringify({ text: text })
       })
         .then(response => response.json())
-        .then(data => {
-          appendMessage({ _id: data._id, text: text, datetime_sent: new Date() }, true);
+        .then(() => {
+          appendMessage({ text: text, datetime_sent: new Date() }, true);
           input.value = '';
         });
     }
   
-    // ======== Events ========
+    // Event Listeners
     document.getElementById('send-btn').addEventListener('click', sendMessage);
     document.getElementById('chat-input').addEventListener('keypress', e => {
       if (e.key === 'Enter') sendMessage();
@@ -187,8 +178,9 @@
       }
     });
   
-    // ======== Boot ========
+    // Boot
     loadInitialMessages();
     setInterval(pollNewMessages, 5000);
+    
   </script>
-    {% endblock %}
+  {% endblock %}
