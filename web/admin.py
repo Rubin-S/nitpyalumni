@@ -57,7 +57,14 @@ class DonateBookAdmin(admin.ModelAdmin):
     list_filter = ('is_approved',)
     search_fields = ('booktitle', 'user__username', 'user__email')
     actions = [export_as_csv]
+from .models import Website
 
+@admin.register(Website)
+class WebsiteAdmin(admin.ModelAdmin):
+    list_display = ('name', 'user', 'content')
+    search_fields = ('name', 'user__roll_no', 'user__user__username')
+    list_filter = ('user__batch', 'user__department')
+    ordering = ('name',)
 # Customizing admin site titles
 admin.site.site_header = "NITPY Alumni"
 admin.site.site_title = "NITPY Alumni Admin Portal"
