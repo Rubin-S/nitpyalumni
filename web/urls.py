@@ -42,6 +42,8 @@ urlpatterns = [
     path('chat/<str:user_id>/update', views.update_messages, name='update_messages'),
     path('chat/<str:user_id>/add_message', views.add_message, name='add_message'),
     path('chats/partial/', views.chats_partial, name="chats_partial"),
-    path('chats/undreaddm/', views.undread_dm, name="undreaddm")
+    path('chats/undreaddm/', views.undread_dm, name="undreaddm"),
+    path('web-team', views.web_dev_team, name="web_dev_team"),
+    path("manage-website/", views.manage_website_view, name="manage_website"),
 
 ]

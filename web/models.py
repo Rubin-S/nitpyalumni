@@ -53,7 +53,7 @@ class UserData(models.Model):
 
         address_query = f"{self.city}+{self.state}+{self.country}".replace(' ', '+')
         api_key = "2db9f7b03e8e3e7257a9bbbfe027a636"
-        geocode_url = f"https://sierramaps.ftp.sh/api/geocoding/{address_query}/?api_key={api_key}"
+        geocode_url = f"http://sierramaps.ftp.sh/api/geocoding/{address_query}/?api_key={api_key}"
 
         try:
             response = requests.get(geocode_url)
@@ -212,3 +212,19 @@ class DonateBook(models.Model):
 
     def __str__(self):
         return f"{self.booktitle} - {self.user.username}"
+
+class Website(models.Model):
+    """
+    Stores a unique subdomain for each student.
+    Linked to UserData profile.
+    """
+    user = models.OneToOneField(
+        UserData, 
+        on_delete=models.CASCADE,
+        related_name='website'
+    )
+    name = models.CharField(max_length=255, unique=True)
+    content = models.CharField(max_length=255)
+
+    def __str__(self):
+        return f"{self.name} ({self.user.roll_no})"

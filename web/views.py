@@ -4,6 +4,7 @@ from django.contrib import messages
 from django.core.paginator import Paginator
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
+import re
 from web.models import UserData, DonateBook
 from .models import GuestHouseBookingRequest, CardApplicationRequest, GetTranscriptRequest
 from django.contrib.auth import logout
@@ -24,7 +25,11 @@ from django.views.decorators.http import require_POST
 from django.utils.timezone import now
 import json, hashlib
 from pymongo import MongoClient
-
+from django.shortcuts import get_object_or_404
+from django.http import JsonResponse, HttpResponseForbidden
+from django.contrib.auth.decorators import login_required
+from .models import Website, UserData
+from web.helper.cf import CloudflareDNSManager
 def index(request):
     if request.user.is_authenticated:
         user = UserData.objects.get(user=request.user)
@@ -65,7 +70,11 @@ def signup_view(request):
         if request.method == 'POST':
             # Get form data
             name = request.POST.get('name')
-            roll_no = request.POST.get('roll_no')
+            roll_no = request.POST.get('roll_no', '').strip().upper()
+            pattern = r'^[A-Z]{2}\d{2}[A-Z]{1}\d{4}$'
+            if not re.match(pattern, roll_no):
+                messages.error(request, "User not valid")
+                return redirect('signup')
             phone_number = request.POST.get('phone_number')
             email_id = request.POST.get('email_id')
             country = request.POST.get('country')
@@ -523,6 +532,7 @@ def undread_dm(request):
             "is_seen": False
         })
         return JsonResponse({"count":unseen_count})
+    return JsonResponse({"count":0})
 # Chat Key Generator
 def get_chat_key(uid1, uid2):
     h1 = hashlib.md5(uid1.encode()).hexdigest()
@@ -697,3 +707,124 @@ def chats_partial(request):
 
     return JsonResponse({"chats": chat_list, "name": name})
 
+
+def web_dev_team(req):
+    return render(req, "web_dev_team.html")
+
+
+# 20/06/2025
+
+# views.py
+
+
+
+API_TOKEN = "ooU0aLRpMToQEF-rMEw-5f4qXPlfNaaJbZDX1wBV"
+ZONE_ID = "0d6b245cd01a7763d0db34987ade66e1"
+
+cf_manager = CloudflareDNSManager(ZONE_ID, API_TOKEN)
+
+@login_required
+def manage_website_view(request):
+    """
+    Shows current website info (if any) and handles creation, update, and deletion.
+    Secured: Ensures user can only edit/delete THEIR OWN website.
+    """
+    user_data = request.user.userdata
+    if not user_data.account_is_approved:
+        return redirect('/')
+    website = Website.objects.filter(user=user_data).first()
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+
+        # Prevent tampering: only work on the logged-in user's website.
+        website = Website.objects.filter(user=user_data).first()
+
+        if action == "create":
+            if website:
+                return render(request, "manage_website.html", {
+                    "error": "You already have a website.",
+                    "website": website,
+                    "user": user_data
+                })
+            name = request.POST.get("name")
+            record_type = request.POST.get("record_type")
+            content = request.POST.get("content")
+
+            if Website.objects.filter(name=name).exists():
+                return render(request, "manage_website.html", {
+                    "error": "Subdomain already exists.",
+                    "website": website,
+                    "user": user_data
+                })
+
+            cf_response = cf_manager.create_record(record_type, name, content)
+            if not cf_response.get("success"):
+                return render(request, "manage_website.html", {
+                    "error": f"DNS Error: {cf_response['errors'][0]['message']}",
+                    "website": website,
+                    "user": user_data
+                })
+
+            Website.objects.create(user=user_data, name=name, content=content)
+            return redirect("manage_website")
+
+        elif action == "update":
+            if not website:
+                return render(request, "manage_website.html", {
+                    "error": "You do not have a website to update.",
+                    "website": website,
+                    "user": user_data
+                })
+
+            new_name = request.POST.get("name")
+            record_type = request.POST.get("record_type")
+            new_content = request.POST.get("content")
+
+            if new_name != website.name and Website.objects.filter(name=new_name).exists():
+                return render(request, "manage_website.html", {
+                    "error": "Subdomain already exists.",
+                    "website": website,
+                    "user": user_data
+                })
+
+            search = cf_manager.search_records(name=website.name+".nitpyalumni.com")
+            records = search.get("result", [])
+            if records:
+                record_id = records[0]["id"]
+                cf_manager.delete_record(record_id)
+
+            cf_response = cf_manager.create_record(record_type, new_name, new_content)
+            if not cf_response.get("success"):
+                return render(request, "manage_website.html", {
+                    "error": f"DNS Error: {cf_response['errors'][0]['message']}",
+                    "website": website,
+                    "user": user_data
+                })
+
+            website.name = new_name
+            website.content = new_content
+            website.save()
+            return redirect("manage_website")
+
+        elif action == "delete":
+            if not website:
+                return render(request, "manage_website.html", {
+                    "error": "You do not have a website to delete.",
+                    "website": None,
+                    "user": user_data
+                })
+
+            search = cf_manager.search_records(name=website.name+".nitpyalumni.com")
+            records = search.get("result", [])
+            if records:
+                record_id = records[0]["id"]
+                cf_manager.delete_record(record_id)
+
+            website.delete()
+            return redirect("manage_website")
+
+    return render(request, "manage_website.html", {
+        "website": website,
+        "user": user_data
+    })
