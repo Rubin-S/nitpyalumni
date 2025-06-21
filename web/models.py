@@ -53,7 +53,7 @@ class UserData(models.Model):
 
         address_query = f"{self.city}+{self.state}+{self.country}".replace(' ', '+')
         api_key = "2db9f7b03e8e3e7257a9bbbfe027a636"
-        geocode_url = f"http://sierramaps.ftp.sh/api/geocoding/{address_query}/?api_key={api_key}"
+        geocode_url = f"https://sierramaps.ftp.sh/api/geocoding/{address_query}/?api_key={api_key}"
 
         try:
             response = requests.get(geocode_url)
