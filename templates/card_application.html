@@ -2,38 +2,65 @@
 
 {% block content %}
 <div class="container mt-5">
-    <h2 class="text-center mb-4">Card Application Request</h2>
+    <h2 class="text-center mb-4">E-Card</h2>
+
     <div class="card p-4 shadow-sm">
         {% if messages %}
-    {% for message in messages %}
-        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <div class="text-center">
+            <h5 class="mb-3">Your Alumni Card</h5>
+            <canvas id="cardCanvas" style="max-width: 100%; border: 1px solid #ccc; border-radius: 8px;"></canvas>
+
+            <br>
+            <button class="btn btn-primary mt-3" onclick="downloadCard()">Download Card</button>
         </div>
-    {% endfor %}
-{% endif %}
-<marquee>The Application procedure will be updated soon </marquee>
-
-        <!--<form method="POST">
-            {% csrf_token %}
-            <div class="mb-3">
-                <label class="form-label">Reason for Application</label>
-                <select name="reason" class="form-select" required>
-                    <option value="">Select Reason</option>
-                    <option value="First Application">First Application</option>
-                    <option value="Card Lost">Card Lost</option>
-                </select>
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label">UTR Transaction Number</label>
-                <input type="text" name="utr_transaction_number" class="form-control" placeholder="Enter your UTR Transaction Number" required>
-            </div>
-
-            <div class="text-center">
-                <button type="submit" class="btn btn-success">Submit Application</button>
-            </div>
-        </form>-->
     </div>
 </div>
+
+<script>
+    window.onload = function () {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.src = "{{ card_template_url }}";
+
+        img.onload = function () {
+            const canvas = document.getElementById('cardCanvas');
+            const ctx = canvas.getContext('2d');
+
+            canvas.width = img.width;
+            canvas.height = img.height;
+
+            ctx.drawImage(img, 0, 0);
+
+            function drawText(text, y, fontSize = 12) {
+                ctx.font = `${fontSize}px Calibri`;
+                ctx.fillStyle = "black";
+                ctx.textBaseline = "middle";
+                const textWidth = ctx.measureText(text).width;
+                const xCenter = (0 + 249) / 2 - textWidth / 2;
+                ctx.fillText(text, xCenter, y);
+            }
+
+            drawText("{{ name|escapejs }}", 240, 20);
+            drawText("{{ roll|escapejs }}", 260);
+            drawText("{{ department|escapejs }}", 290);
+            drawText("{{ year|escapejs }}", 340);
+        };
+    };
+
+    function downloadCard() {
+        const canvas = document.getElementById('cardCanvas');
+        const link = document.createElement('a');
+        link.download = '{{ roll|escapejs }}.png';
+        link.href = canvas.toDataURL();
+        link.click();
+    }
+</script>
 {% endblock %}

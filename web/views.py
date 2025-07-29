@@ -251,19 +251,9 @@ def card_application_request(request):
     current_user = UserData.objects.get(user=request.user)
     if not current_user.account_is_approved:
         return redirect('/')
-    if request.method == 'POST':
-        reason = request.POST.get('reason')
-        utr_transaction_number = request.POST.get('utr_transaction_number')
+    context = {"name": current_user.name, "roll": current_user.roll_no, "department": current_user.department, "year": current_user.batch, "card_template_url": "https://raw.githubusercontent.com/Ojas1024/nitpyalumni_images/refs/heads/main/alumni%20id%202-Recovered_page-0001.jpg"}
 
-        CardApplicationRequest.objects.create(
-            user=request.user,
-            reason=reason,
-            utr_transaction_number=utr_transaction_number
-        )
-        messages.success(request, 'Your card application request has been submitted successfully.')
-        return redirect('card_application')
-
-    return render(request, 'card_application.html')
+    return render(request, 'card_application.html', context=context)
 
 @login_required
 def get_transcript_request(request):

@@ -98,7 +98,7 @@ DATABASES = {
         'NAME': 'Alumni',                     # The name of the database
         'USER': 'alumni_admin',               # The username for MySQL
         'PASSWORD': 'P1l1bh1t@99',            # The password for the MySQL user
-        'HOST': '80.225.221.10',                  # The host where your MySQL database is running (use 'localhost' if it's on the same machine)
+        'HOST': '80.225.193.1',                  # The host where your MySQL database is running (use 'localhost' if it's on the same machine)
         'PORT': '3306',                       # The port MySQL is listening on (default is 3306)
     }
 }
