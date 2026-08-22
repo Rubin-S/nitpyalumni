@@ -1,5 +1,5 @@
 # NITPY Alumni
-## ~ Darshitha Marapareddy
+## ~ ojas
 
 Features:
 1. Login / Signup
