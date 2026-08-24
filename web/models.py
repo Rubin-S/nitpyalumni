@@ -1,10 +1,20 @@
+import os
+
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.conf import settings
 import requests
-recipient_list=['naveenraj.r@nitpy.ac.in', 'gupta.ojas.27@gmail.com']
+
+recipient_list = [
+    email.strip()
+    for email in os.environ.get(
+        "STAFF_ALERT_EMAILS",
+        "naveenraj.r@nitpy.ac.in,gupta.ojas.27@gmail.com",
+    ).split(",")
+    if email.strip()
+]
 # Utility function to send email
 def send_creation_email(subject, message):
     send_mail(
@@ -51,21 +61,21 @@ class UserData(models.Model):
         if not is_new:
             old_instance = UserData.objects.get(pk=self.pk)
 
-        address_query = f"{self.city}+{self.state}+{self.country}".replace(' ', '+')
-        api_key = "2db9f7b03e8e3e7257a9bbbfe027a636"
-        geocode_url = f"https://sierramaps.ftp.sh/api/geocoding/{address_query}/?api_key={api_key}"
-
-        try:
-            response = requests.get(geocode_url)
-            if response.status_code == 200:
-                data = response.json()
-                if len(data.get("resourceSet", [])) > 0:
-                    first_result = data["resourceSet"][0]
-                    if "geo" in first_result:
-                        self.lat = Decimal(first_result["geo"]["latitude"])
-                        self.lng = Decimal(first_result["geo"]["longitude"])
-        except Exception as e:
-            print(f"Geocoding failed: {e}")
+        api_key = os.environ.get("GEOCODING_API_KEY", "")
+        if api_key:
+            address_query = f"{self.city}+{self.state}+{self.country}".replace(" ", "+")
+            geocode_url = f"https://sierramaps.ftp.sh/api/geocoding/{address_query}/?api_key={api_key}"
+            try:
+                response = requests.get(geocode_url, timeout=5)
+                if response.status_code == 200:
+                    data = response.json()
+                    if len(data.get("resourceSet", [])) > 0:
+                        first_result = data["resourceSet"][0]
+                        if "geo" in first_result:
+                            self.lat = Decimal(first_result["geo"]["latitude"])
+                            self.lng = Decimal(first_result["geo"]["longitude"])
+            except Exception as e:
+                print(f"Geocoding failed: {e}")
 
         super().save(*args, **kwargs)
 
@@ -85,9 +95,6 @@ class UserData(models.Model):
                 recipient_list=[self.email_id],
                 fail_silently=True
             )
-
-    def __str__(self):
-        return f"{self.name} ({self.roll_no})"
 
     def __str__(self):
         return f"{self.name} ({self.roll_no})"

@@ -24,6 +24,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.utils.timezone import now
 import json, hashlib
+import os
 from pymongo import MongoClient
 from django.shortcuts import get_object_or_404
 from django.http import JsonResponse, HttpResponseForbidden
@@ -32,9 +33,13 @@ from .models import Website, UserData
 from web.helper.cf import CloudflareDNSManager
 def index(request):
     if request.user.is_authenticated:
-        user = UserData.objects.get(user=request.user)
+        user = UserData.objects.filter(user=request.user).first()
+        if user is None:
+            if request.user.is_staff:
+                return redirect("/admin/")
+            return render(request, "home.html")
         is_approved = user.account_is_approved
-        return render(request, 'student_dash.html', context={"user":user, "is_approved":is_approved})
+        return render(request, "student_dash.html", context={"user": user, "is_approved": is_approved})
     return render(request, "home.html")
 def vam(request):
     return render(request, "vision_and_mission.html")
@@ -493,10 +498,23 @@ def profile_view(request):
 
 
 
-client = MongoClient("mongodb+srv://chatbot:chatbot117@cluster0.lxwem4m.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
-db = client["ChatDB"]
+_mongo_db = None
+
+
+def get_chat_db():
+    global _mongo_db
+    if _mongo_db is not None:
+        return _mongo_db
+    mongo_uri = os.environ.get("MONGODB_URI", "")
+    if not mongo_uri:
+        return None
+    _mongo_db = MongoClient(mongo_uri, serverSelectionTimeoutMS=3000)["ChatDB"]
+    return _mongo_db
 # count number of unread DMs
 def undread_dm(request):
+    db = get_chat_db()
+    if db is None:
+        return JsonResponse({"count": 0})
     user_id = str(request.user.id)
     metadata = db.UserMetaData.find_one({"user_id": user_id})
     chat_list = metadata.get("chats", []) if metadata else []
@@ -530,6 +548,9 @@ def get_chat_key(uid1, uid2):
     return str(int(h1, 16) ^ int(h2, 16))
 
 def update_user_metadata(user_id, other_user_id):
+    db = get_chat_db()
+    if db is None:
+        return
     result = db.UserMetaData.update_one(
         {"user_id": user_id, "chats.other_user_id": other_user_id},
         {"$set": {"chats.$.last_message_time": now()}}
@@ -546,6 +567,9 @@ def update_user_metadata(user_id, other_user_id):
 # 1. /chats
 @login_required
 def chats(request):
+    db = get_chat_db()
+    if db is None:
+        return render(request, "chats.html", {"chats": [], "name": request.user.username})
     user_id = str(request.user.id)
     metadata = db.UserMetaData.find_one({"user_id": user_id})
     chat_list = metadata.get("chats", []) if metadata else []
@@ -597,6 +621,9 @@ def chat_view(request, user_id):
 # 3. /chat/<user_id>/load
 @login_required
 def load_messages(request, user_id):
+    db = get_chat_db()
+    if db is None:
+        return JsonResponse({"messages": []})
     offset = int(request.GET.get("offset", 0))
     chat_key = get_chat_key(str(request.user.id), user_id)
 
@@ -616,6 +643,9 @@ def load_messages(request, user_id):
 # 4. /chat/<user_id>/update
 @login_required
 def update_messages(request, user_id):
+    db = get_chat_db()
+    if db is None:
+        return JsonResponse({"messages": []})
     chat_key = get_chat_key(str(request.user.id), user_id)
 
     unseen_messages = list(db.Chats.find({
@@ -638,6 +668,9 @@ def update_messages(request, user_id):
 @login_required
 @require_POST
 def add_message(request, user_id):
+    db = get_chat_db()
+    if db is None:
+        return JsonResponse({"status": "unavailable"}, status=503)
     data = json.loads(request.body)
     chat_key = get_chat_key(str(request.user.id), user_id)
 
@@ -661,6 +694,9 @@ def add_message(request, user_id):
 
 @login_required
 def chats_partial(request):
+    db = get_chat_db()
+    if db is None:
+        return JsonResponse({"chats": [], "name": request.user.username})
     user_id = str(request.user.id)
     metadata = db.UserMetaData.find_one({"user_id": user_id})
     chat_list = metadata.get("chats", []) if metadata else []
@@ -708,10 +744,12 @@ def web_dev_team(req):
 
 
 
-API_TOKEN = "ooU0aLRpMToQEF-rMEw-5f4qXPlfNaaJbZDX1wBV"
-ZONE_ID = "0d6b245cd01a7763d0db34987ade66e1"
-
-cf_manager = CloudflareDNSManager(ZONE_ID, API_TOKEN)
+def get_cf_manager():
+    api_token = os.environ.get("CF_API_TOKEN", "")
+    zone_id = os.environ.get("CF_ZONE_ID", "")
+    if not api_token or not zone_id:
+        return None
+    return CloudflareDNSManager(zone_id, api_token)
 
 @login_required
 def manage_website_view(request):
@@ -723,8 +761,15 @@ def manage_website_view(request):
     if not user_data.account_is_approved:
         return redirect('/')
     website = Website.objects.filter(user=user_data).first()
+    cf_manager = get_cf_manager()
 
     if request.method == "POST":
+        if cf_manager is None:
+            return render(request, "manage_website.html", {
+                "error": "Website DNS is not configured on this deployment.",
+                "website": website,
+                "user": user_data,
+            })
         action = request.POST.get("action")
 
         # Prevent tampering: only work on the logged-in user's website.

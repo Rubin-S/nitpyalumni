@@ -1,2 +1,12 @@
 *.log
 django_server.log
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+db.sqlite3
+staticfiles/
+.venv/
+venv/
+.python-version
