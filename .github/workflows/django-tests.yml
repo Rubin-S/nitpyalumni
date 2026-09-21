@@ -9,20 +9,46 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, postgres]
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: nitpyalumni_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d nitpyalumni_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     env:
       DEBUG: "True"
       SECRET_KEY: test-secret-key
+      DATABASE_URL: ${{ matrix.database == 'postgres' && 'postgresql://postgres:postgres@127.0.0.1:5432/nitpyalumni_test' || '' }}
+      DATABASE_SSL: "false"
+
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
 
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      - name: Check for missing migrations
+        run: python manage.py makemigrations --check --dry-run
 
       - name: Run Django checks
         run: python manage.py check
