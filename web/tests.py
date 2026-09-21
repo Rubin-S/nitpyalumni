@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.contrib.auth.models import User
 from django.core import mail
 from django.test import TestCase, override_settings
@@ -182,6 +184,48 @@ class AuthenticationFlowTests(TestCase):
             response,
             f'{reverse("login")}?next={reverse("alumni_map")}',
         )
+
+    def test_weak_password_is_rejected(self):
+        response = self.client.post(
+            reverse("signup"),
+            self.signup_payload(password1="password", password2="password"),
+        )
+
+        self.assertRedirects(response, reverse("signup"))
+        self.assertEqual(User.objects.count(), 0)
+        self.assertEqual(UserData.objects.count(), 0)
+
+    def test_required_server_side_fields_are_enforced(self):
+        response = self.client.post(
+            reverse("signup"),
+            self.signup_payload(name=""),
+        )
+
+        self.assertRedirects(response, reverse("signup"))
+        self.assertEqual(User.objects.count(), 0)
+
+    def test_email_is_normalized_and_login_is_case_insensitive(self):
+        response = self.client.post(
+            reverse("signup"),
+            self.signup_payload(email_id=" Alumni@EXAMPLE.COM "),
+        )
+
+        self.assertRedirects(response, reverse("login"))
+        user = User.objects.get(username="EC20A0001")
+        self.assertEqual(user.email, "Alumni@example.com")
+
+        login_response = self.login(email="alumni@example.com")
+        self.assertRedirects(login_response, "/")
+        self.assertIn("_auth_user_id", self.client.session)
+
+    @patch("web.views.UserData.objects.create", side_effect=RuntimeError("profile failure"))
+    def test_profile_failure_rolls_back_user_creation(self, _mock_create):
+        response = self.client.post(reverse("signup"), self.signup_payload())
+
+        self.assertRedirects(response, reverse("signup"))
+        self.assertEqual(User.objects.count(), 0)
+        self.assertEqual(UserData.objects.count(), 0)
+
 
     def test_logout_ends_authenticated_session(self):
         self.create_account()
