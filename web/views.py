@@ -1,5 +1,10 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
+from django.db import transaction
+import logging
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.contrib.auth.decorators import login_required
@@ -31,6 +36,8 @@ from django.http import JsonResponse, HttpResponseForbidden
 from django.contrib.auth.decorators import login_required
 from .models import Website, UserData
 from web.helper.cf import CloudflareDNSManager
+
+logger = logging.getLogger(__name__)
 def index(request):
     if request.user.is_authenticated:
         user = UserData.objects.filter(user=request.user).first()
@@ -48,84 +55,122 @@ def dm(request):
 
 def login_view(request):
     if request.user.is_authenticated:
-        return redirect('/')
-    if request.method == 'POST':
-        email = request.POST.get('email')
-        password = request.POST.get('password')
+        return redirect("/")
+
+    if request.method == "POST":
+        email = (request.POST.get("email") or "").strip()
+        password = request.POST.get("password") or ""
+
+        user = User.objects.filter(email__iexact=email).first()
+        user_auth = (
+            authenticate(request, username=user.username, password=password)
+            if user
+            else None
+        )
+
+        if user_auth is not None:
+            login(request, user_auth)
+            return redirect("/")
+
+        # Keep the response identical for unknown emails and bad passwords.
+        messages.error(request, "Invalid email or password. Please try again.")
+
+    return render(request, "login.html")
+
+
+def signup_view(request):
+    if request.user.is_authenticated:
+        return redirect("/")
+
+    if request.method != "POST":
+        return render(request, "signup.html")
+
+    try:
+        name = (request.POST.get("name") or "").strip()
+        roll_no = (request.POST.get("roll_no") or "").strip().upper()
+        phone_number = (request.POST.get("phone_number") or "").strip()
+        raw_email = (request.POST.get("email_id") or "").strip()
+        email_id = User.objects.normalize_email(raw_email)
+        country = (request.POST.get("country") or "").strip()
+        state = (request.POST.get("state") or "").strip()
+        city = (request.POST.get("city") or "").strip()
+        batch_raw = (request.POST.get("batch") or "").strip()
+        degree = (request.POST.get("degree") or "").strip()
+        department = (request.POST.get("department") or "").strip()
+        present_address = (request.POST.get("present_address") or "").strip()
+        linked_id = (request.POST.get("linkedin") or "").strip()
+        facebook = (request.POST.get("facebook") or "").strip()
+        instagram = (request.POST.get("instagram") or "").strip()
+        current_status = (request.POST.get("current_status") or "").strip()
+        job_title = (request.POST.get("job_title") or "").strip()
+        job_address = (request.POST.get("job_address") or "").strip()
+        higher_study_uni_name = (request.POST.get("higher_study_uni_name") or "").strip()
+        higher_study_uni_address = (request.POST.get("higher_study_uni_address") or "").strip()
+        higher_study_field = (request.POST.get("higher_study_field") or "").strip()
+        password1 = request.POST.get("password1") or ""
+        password2 = request.POST.get("password2") or ""
+
+        required_values = (
+            name,
+            roll_no,
+            phone_number,
+            email_id,
+            country,
+            state,
+            city,
+            batch_raw,
+            degree,
+            department,
+            present_address,
+            current_status,
+            password1,
+            password2,
+        )
+        if not all(required_values):
+            raise ValidationError("Please complete all required fields.")
+
+        if not re.fullmatch(r"[A-Z]{2}\d{2}[A-Z]\d{4}", roll_no):
+            raise ValidationError("User not valid.")
+
+        validate_email(email_id)
 
         try:
-            user = User.objects.get(email=email)
-            user_auth = authenticate(username=user.username, password=password)
+            batch = int(batch_raw)
+        except (TypeError, ValueError):
+            raise ValidationError("Please select a valid batch.")
 
-            if user_auth is not None:
-                login(request, user_auth)
-                return redirect('/')  # Redirect to home page or dashboard
-            else:
-                messages.error(request, "Invalid email or password. Please try again.")
+        if current_status not in {"job", "study", "none"}:
+            raise ValidationError("Please select a valid current status.")
 
-        except User.DoesNotExist:
-            messages.error(request, "No user found with this email address.")
+        if password1 != password2:
+            raise ValidationError("Passwords do not match.")
 
-    return render(request, 'login.html')
-def signup_view(request):
-    try:
-        if request.user.is_authenticated:
-            return redirect('/')
+        if User.objects.filter(username=roll_no).exists():
+            raise ValidationError("Roll number already registered.")
 
-        if request.method == 'POST':
-            # Get form data
-            name = request.POST.get('name')
-            roll_no = request.POST.get('roll_no', '').strip().upper()
-            pattern = r'^[A-Z]{2}\d{2}[A-Z]{1}\d{4}$'
-            if not re.match(pattern, roll_no):
-                messages.error(request, "User not valid")
-                return redirect('signup')
-            phone_number = request.POST.get('phone_number')
-            email_id = request.POST.get('email_id')
-            country = request.POST.get('country')
-            state = request.POST.get('state')
-            city = request.POST.get('city')
-            batch = request.POST.get('batch')
-            degree = request.POST.get('degree')
-            department = request.POST.get('department')
-            present_address = request.POST.get('present_address')
-            linked_id = request.POST.get('linkedin') or ""
-            facebook = request.POST.get('facebook') or ""
-            instagram = request.POST.get('instagram') or ""
-            current_status = request.POST.get('current_status')
-            job_title = request.POST.get('job_title') or ""
-            job_address = request.POST.get('job_address') or ""
-            higher_study_uni_name = request.POST.get('higher_study_uni_name') or ""
-            higher_study_uni_address = request.POST.get('higher_study_uni_address') or ""
-            higher_study_field = request.POST.get('higher_study_field') or ""
-            password1 = request.POST.get('password1')
-            password2 = request.POST.get('password2')
+        if User.objects.filter(email__iexact=email_id).exists():
+            raise ValidationError("Email already registered.")
 
-            # Password validation
-            if password1 != password2:
-                messages.error(request, "Passwords do not match.")
-                return redirect('signup')
+        name_parts = name.split()
+        candidate_user = User(
+            username=roll_no,
+            email=email_id,
+            first_name=name_parts[0],
+            last_name=" ".join(name_parts[1:]),
+        )
+        validate_password(password1, user=candidate_user)
 
-            # Check if user already exists
-            if User.objects.filter(username=roll_no).exists():
-                messages.error(request, "Roll number already registered.")
-                return redirect('signup')
-
-            if User.objects.filter(email=email_id).exists():
-                messages.error(request, "Email already registered.")
-                return redirect('signup')
-
-            # Create user account
+        # User and UserData must be created together or not at all.
+        with transaction.atomic():
             user = User.objects.create_user(
                 username=roll_no,
                 email=email_id,
                 password=password1,
-                first_name=name.split()[0],
-                last_name=' '.join(name.split()[1:]) if len(name.split()) > 1 else ''
+                first_name=candidate_user.first_name,
+                last_name=candidate_user.last_name,
             )
 
-            # Create the UserData entry with the new fields
-            user_data = UserData.objects.create(
+            UserData.objects.create(
                 user=user,
                 roll_no=roll_no,
                 name=name,
@@ -135,30 +180,41 @@ def signup_view(request):
                 city=city,
                 batch=batch,
                 department=department,
-                degree=degree,  # Added degree field
+                degree=degree,
                 email_id=email_id,
-                linked_in=linked_id,  # LinkedIn URL
-                facebook=facebook,  # Facebook URL
-                instagram=instagram,  # Instagram URL
-                in_job=(current_status == 'job'),
+                linked_in=linked_id,
+                facebook=facebook,
+                instagram=instagram,
+                in_job=(current_status == "job"),
                 present_address=present_address,
-                job_title=job_title if current_status == 'job' else None,
-                job_address=job_address if current_status == 'job' else None,
-                higher_study_uni_name=higher_study_uni_name if current_status == 'study' else None,
-                higher_study_uni_address=higher_study_uni_address if current_status == 'study' else None,
-                higher_study_field=higher_study_field if current_status == 'study' else None
+                job_title=job_title if current_status == "job" else None,
+                job_address=job_address if current_status == "job" else None,
+                higher_study_uni_name=(
+                    higher_study_uni_name if current_status == "study" else None
+                ),
+                higher_study_uni_address=(
+                    higher_study_uni_address if current_status == "study" else None
+                ),
+                higher_study_field=(
+                    higher_study_field if current_status == "study" else None
+                ),
             )
 
-            # Success message and redirection
-            messages.success(request, "Account created successfully! Please wait for approval.")
-            return redirect('login')
+        messages.success(
+            request, "Account created successfully! Please wait for approval."
+        )
+        return redirect("login")
 
-        return render(request, 'signup.html')
-
-    except Exception as e:
-        # Catch any exception and display an error message
-        messages.error(request, f"An error occurred: {str(e)}")
-        return redirect('/login')
+    except ValidationError as exc:
+        messages.error(request, " ".join(exc.messages))
+        return redirect("signup")
+    except Exception:
+        logger.exception("Unexpected error while creating alumni account")
+        messages.error(
+            request,
+            "We could not create your account. Please try again or contact support.",
+        )
+        return redirect("signup")
 
 
 @login_required
