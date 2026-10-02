@@ -30,3 +30,8 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("", include("web.urls")),
 ]
+
+handler400 = 'web.views.custom_bad_request'
+handler403 = 'web.views.custom_permission_denied'
+handler404 = 'web.views.custom_page_not_found'
+handler500 = 'web.views.custom_server_error'

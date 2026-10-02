@@ -1,7 +1,10 @@
 from django.contrib import admin
 from django.http import HttpResponse
 import csv
-from .models import UserData, JobPosting, Talk, DonateBook
+from .models import (
+    UserData, JobPosting, Talk, DonateBook, Website,
+    GuestHouseBookingRequest, CardApplicationRequest, GetTranscriptRequest
+)
 
 # Universal export as CSV action
 def export_as_csv(modeladmin, request, queryset):
@@ -27,9 +30,17 @@ class UserDataAdmin(admin.ModelAdmin):
     list_filter = ('account_is_approved', 'batch', 'department', 'in_job', 'country', 'state', 'city')
     search_fields = ('user__username', 'name', 'roll_no', 'email_id', 'phone_number')
     ordering = ('batch', 'department', 'name')
-    @admin.action(description="Approve selected users")
+
+    @admin.action(description="Approve selected users and send approval email")
     def approve_selected(modeladmin, request, queryset):
-        queryset.update(account_is_approved=True)
+        unapproved = queryset.filter(account_is_approved=False)
+        count = 0
+        for profile in unapproved:
+            profile.account_is_approved = True
+            profile.save()
+            count += 1
+        modeladmin.message_user(request, f"{count} alumni account(s) approved and notified.")
+
     actions = [export_as_csv, approve_selected]
     
 # JobPosting Admin
@@ -57,7 +68,6 @@ class DonateBookAdmin(admin.ModelAdmin):
     list_filter = ('is_approved',)
     search_fields = ('booktitle', 'user__username', 'user__email')
     actions = [export_as_csv]
-from .models import Website
 
 @admin.register(Website)
 class WebsiteAdmin(admin.ModelAdmin):
@@ -65,6 +75,44 @@ class WebsiteAdmin(admin.ModelAdmin):
     search_fields = ('name', 'user__roll_no', 'user__user__username')
     list_filter = ('user__batch', 'user__department')
     ordering = ('name',)
+
+# GuestHouseBookingRequest Admin
+@admin.register(GuestHouseBookingRequest)
+class GuestHouseBookingRequestAdmin(admin.ModelAdmin):
+    list_display = ('user', 'get_name', 'type_of_room', 'datetime_in', 'datetime_out')
+    list_filter = ('type_of_room', 'datetime_in', 'datetime_out')
+    search_fields = ('user__username', 'userdata__name', 'reason_of_visit')
+    ordering = ('-datetime_in',)
+    actions = [export_as_csv]
+
+    @admin.display(description='Alumni Name')
+    def get_name(self, obj):
+        return obj.userdata.name if obj.userdata else obj.user.get_full_name()
+
+# CardApplicationRequest Admin
+@admin.register(CardApplicationRequest)
+class CardApplicationRequestAdmin(admin.ModelAdmin):
+    list_display = ('user', 'get_name', 'reason', 'utr_transaction_number')
+    list_filter = ('reason',)
+    search_fields = ('user__username', 'userdata__name', 'utr_transaction_number')
+    actions = [export_as_csv]
+
+    @admin.display(description='Alumni Name')
+    def get_name(self, obj):
+        return obj.userdata.name if obj.userdata else obj.user.get_full_name()
+
+# GetTranscriptRequest Admin
+@admin.register(GetTranscriptRequest)
+class GetTranscriptRequestAdmin(admin.ModelAdmin):
+    list_display = ('user', 'get_name', 'requested_on')
+    list_filter = ('requested_on',)
+    search_fields = ('user__username', 'userdata__name')
+    ordering = ('-requested_on',)
+    actions = [export_as_csv]
+
+    @admin.display(description='Alumni Name')
+    def get_name(self, obj):
+        return obj.userdata.name if obj.userdata else obj.user.get_full_name()
 # Customizing admin site titles
 admin.site.site_header = "NITPY Alumni"
 admin.site.site_title = "NITPY Alumni Admin Portal"

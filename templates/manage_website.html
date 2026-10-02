@@ -68,9 +68,9 @@
                     <div class="mb-3">
                         <label for="edit_record_type" class="form-label">Record Type</label>
                         <select class="form-select" name="record_type" id="edit_record_type" required>
-                            <option value="A" {% if website.content|default:'' == 'A' %}selected{% endif %}>A</option>
-                            <option value="AAAA" {% if website.content|default:'' == 'AAAA' %}selected{% endif %}>AAAA</option>
-                            <option value="CNAME" {% if website.content|default:'' == 'CNAME' %}selected{% endif %}>CNAME</option>
+                            <option value="A" {% if current_record_type == 'A' %}selected{% endif %}>A</option>
+                            <option value="AAAA" {% if current_record_type == 'AAAA' %}selected{% endif %}>AAAA</option>
+                            <option value="CNAME" {% if current_record_type == 'CNAME' %}selected{% endif %}>CNAME</option>
                         </select>
                     </div>
                     <div class="mb-3">

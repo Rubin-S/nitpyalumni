@@ -31,7 +31,7 @@
               <!-- Roll No -->
               <div class="col-md-6 mb-3">
                 <label class="form-label">Roll Number</label>
-                <input type="text" name="roll_no" class="form-control" required value="{{ user_data.roll_no }}">
+                <input type="text" name="roll_no" class="form-control" required value="{{ user_data.roll_no }}" readonly>
               </div>
 
               <!-- Phone -->
@@ -127,19 +127,19 @@
               <!-- LinkedIn -->
               <div class="col-md-12 mb-3">
                 <label class="form-label">LinkedIn Profile (Optional)</label>
-                <input type="url" name="linkedin" class="form-control" value="{{ user_data.linkedin }}">
+                <input type="url" name="linkedin" class="form-control" value="{{ user_data.linked_in|default:'' }}">
               </div>
 
               <!-- Facebook -->
               <div class="col-md-6 mb-3">
                 <label class="form-label">Facebook Profile (Optional)</label>
-                <input type="url" name="facebook" class="form-control" value="{{ user_data.facebook }}">
+                <input type="url" name="facebook" class="form-control" value="{{ user_data.facebook|default:'' }}">
               </div>
 
               <!-- Instagram -->
               <div class="col-md-6 mb-3">
                 <label class="form-label">Instagram Profile (Optional)</label>
-                <input type="url" name="instagram" class="form-control" value="{{ user_data.instagram }}">
+                <input type="url" name="instagram" class="form-control" value="{{ user_data.instagram|default:'' }}">
               </div>
 
               <!-- Current Status -->
@@ -147,26 +147,26 @@
                 <label class="form-label">Currently</label>
                 <select class="form-select" id="current_status" name="current_status" onchange="toggleFields()" required>
                   <option value="">-- Select --</option>
-                  <option value="job" {% if user_data.current_status == "job" %}selected{% endif %}>Working</option>
-                  <option value="study" {% if user_data.current_status == "study" %}selected{% endif %}>Pursuing Higher Studies</option>
-                  <option value="none" {% if user_data.current_status == "none" %}selected{% endif %}>Neither</option>
+                  <option value="job" {% if current_status == "job" %}selected{% endif %}>Working</option>
+                  <option value="study" {% if current_status == "study" %}selected{% endif %}>Pursuing Higher Studies</option>
+                  <option value="none" {% if current_status == "none" %}selected{% endif %}>Neither</option>
                 </select>
               </div>
 
               <!-- Job Fields -->
-              <div id="job_fields" style="display: {% if user_data.current_status == 'job' %}block{% else %}none{% endif %};">
+              <div id="job_fields" style="display: {% if current_status == 'job' %}block{% else %}none{% endif %};">
                 <div class="mb-3">
                   <label class="form-label">Job Title</label>
-                  <input type="text" name="job_title" class="form-control" value="{{ user_data.job_title }}">
+                  <input type="text" name="job_title" class="form-control" value="{{ user_data.job_title|default:'' }}">
                 </div>
                 <div class="mb-3">
                   <label class="form-label">Job Address</label>
-                  <input type="text" name="job_address" class="form-control" value="{{ user_data.job_address }}">
+                  <input type="text" name="job_address" class="form-control" value="{{ user_data.job_address|default:'' }}">
                 </div>
               </div>
 
               <!-- Higher Studies Fields -->
-              <div id="study_fields" style="display: {% if user_data.current_status == 'study' %}block{% else %}none{% endif %};">
+              <div id="study_fields" style="display: {% if current_status == 'study' %}block{% else %}none{% endif %};">
                 <div class="mb-3">
                   <label class="form-label">University Name</label>
                   <input type="text" name="higher_study_uni_name" class="form-control" value="{{ user_data.higher_study_uni_name }}">

@@ -182,11 +182,32 @@
           }
         }
       
-        // Update immediately on page load
-        updateUnreadDMCount();
-      
-        // Update every 2 seconds
-        setInterval(updateUnreadDMCount, 2000);
+        let dmPollTimer = null;
+
+        function startDMPolling() {
+          stopDMPolling();
+          updateUnreadDMCount();
+          dmPollTimer = setInterval(updateUnreadDMCount, 15000);
+        }
+
+        function stopDMPolling() {
+          if (dmPollTimer) {
+            clearInterval(dmPollTimer);
+            dmPollTimer = null;
+          }
+        }
+
+        // Start polling on load
+        startDMPolling();
+
+        // Pause polling when tab is hidden, resume immediately when active
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') {
+            startDMPolling();
+          } else {
+            stopDMPolling();
+          }
+        });
       </script>
       {%endif%}
 </body>

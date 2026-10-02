@@ -57,12 +57,19 @@ class UserData(models.Model):
         is_new = self.pk is None
         old_instance = None
 
-        # Fetch old instance to check if approval status changed
+        # Fetch old instance safely to check if approval status or location changed
         if not is_new:
-            old_instance = UserData.objects.get(pk=self.pk)
+            old_instance = UserData.objects.filter(pk=self.pk).first()
 
         api_key = os.environ.get("GEOCODING_API_KEY", "")
-        if api_key:
+        location_changed = (
+            is_new or
+            old_instance is None or
+            old_instance.city != self.city or
+            old_instance.state != self.state or
+            old_instance.country != self.country
+        )
+        if api_key and location_changed:
             address_query = f"{self.city}+{self.state}+{self.country}".replace(" ", "+")
             geocode_url = f"https://sierramaps.ftp.sh/api/geocoding/{address_query}/?api_key={api_key}"
             try:
@@ -72,8 +79,8 @@ class UserData(models.Model):
                     if len(data.get("resourceSet", [])) > 0:
                         first_result = data["resourceSet"][0]
                         if "geo" in first_result:
-                            self.lat = Decimal(first_result["geo"]["latitude"])
-                            self.lng = Decimal(first_result["geo"]["longitude"])
+                            self.lat = Decimal(str(first_result["geo"]["latitude"]))
+                            self.lng = Decimal(str(first_result["geo"]["longitude"]))
             except Exception as e:
                 print(f"Geocoding failed: {e}")
 
@@ -156,7 +163,8 @@ class GuestHouseBookingRequest(models.Model):
             self.userdata = UserData.objects.filter(user=self.user).first()
         super().save(*args, **kwargs)
         if is_new:
-            send_creation_email(f"New guest house booking by: {self.userdata.name}", f"Kindly consider approving or rejecting it in admin panel")
+            applicant_name = self.userdata.name if self.userdata else (self.user.get_full_name() or self.user.username)
+            send_creation_email(f"New guest house booking by: {applicant_name}", f"Kindly consider approving or rejecting it in admin panel")
 
     def __str__(self):
         return f"{self.user.username} - {self.type_of_room} Room Booking"
@@ -179,7 +187,8 @@ class CardApplicationRequest(models.Model):
             self.userdata = UserData.objects.filter(user=self.user).first()
         super().save(*args, **kwargs)
         if is_new:
-            send_creation_email(f"New Card Application request by: {self.userdata.name}", f"Kindly consider approving or rejecting it in admin panel")
+            applicant_name = self.userdata.name if self.userdata else (self.user.get_full_name() or self.user.username)
+            send_creation_email(f"New Card Application request by: {applicant_name}", f"Kindly consider approving or rejecting it in admin panel")
 
     def __str__(self):
         return f"{self.user.username} - {self.reason}"
@@ -196,7 +205,8 @@ class GetTranscriptRequest(models.Model):
             self.userdata = UserData.objects.filter(user=self.user).first()
         super().save(*args, **kwargs)
         if is_new:
-            send_creation_email(f"New Transcript request by: {self.userdata.name}", f"Kindly consider approving or rejecting it in admin panel")
+            applicant_name = self.userdata.name if self.userdata else (self.user.get_full_name() or self.user.username)
+            send_creation_email(f"New Transcript request by: {applicant_name}", f"Kindly consider approving or rejecting it in admin panel")
 
     def __str__(self):
         return f"{self.user.username} - Transcript Request"
