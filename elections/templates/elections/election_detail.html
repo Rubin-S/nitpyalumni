@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}{{ election.title }} - Elections{% endblock %}
+
+{% block content %}
+<div class="container">
+  <a href="{% url 'elections:election_list' %}" class="text-decoration-none">&larr; All elections</a>
+  <h2 class="mt-2">{{ election.title }}
+    <span class="badge bg-{{ election.phase_badge }} fs-6 align-middle">{{ election.phase_label }}</span>
+  </h2>
+  {% if election.description %}<p class="lead">{{ election.description|linebreaksbr }}</p>{% endif %}
+
+  {% include "elections/_messages.html" %}
+
+  {% if is_staff_preview %}
+    <div class="alert alert-info">
+      <strong>Administrator Preview Mode:</strong> You are browsing this election as staff. Staff accounts cannot nominate or cast ballots.
+    </div>
+  {% elif not is_eligible %}
+    <div class="alert alert-warning">
+      You are not eligible to vote in elections. Contact the alumni committee.
+    </div>
+  {% endif %}
+
+  <div class="card mb-4 shadow-sm">
+    <div class="card-body">
+      <h5 class="card-title">Timeline</h5>
+      <ul class="list-unstyled mb-0">
+        <li><strong>Nominations:</strong> {{ election.nomination_start|date:"d M Y, h:i A" }} &ndash; {{ election.nomination_end|date:"d M Y, h:i A" }}</li>
+        <li><strong>Voting:</strong> {{ election.voting_start|date:"d M Y, h:i A" }} &ndash; {{ election.voting_end|date:"d M Y, h:i A" }}</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Your status / actions -->
+  <div class="mb-4">
+    {% if has_voted %}
+      <div class="alert alert-success">You have voted in this election. Thank you!</div>
+    {% endif %}
+
+    {% if my_nomination %}
+      <div class="alert alert-info d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span>
+          Your nomination for <strong>{{ my_nomination.position.title }}</strong> is
+          <strong>{{ my_nomination.get_status_display }}</strong>.
+        </span>
+        {% if can_withdraw_now %}
+          <form method="post" action="{% url 'elections:withdraw' election.pk %}"
+                onsubmit="return confirm('Withdraw your nomination?');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-danger btn-sm">Withdraw</button>
+          </form>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {% if can_nominate_now %}
+      <a href="{% url 'elections:nominate' election.pk %}" class="btn btn-primary">Nominate yourself</a>
+    {% endif %}
+    {% if can_vote_now %}
+      <a href="{% url 'elections:ballot' election.pk %}" class="btn btn-success">Cast your vote</a>
+    {% endif %}
+    {% if election.results_published %}
+      <a href="{% url 'elections:results' election.pk %}" class="btn btn-outline-primary">View results</a>
+    {% elif phase == Phase.CLOSED %}
+      <div class="alert alert-secondary mt-3">Voting has closed. Results will be published by the alumni committee.</div>
+    {% endif %}
+  </div>
+
+  <!-- Positions and candidates -->
+  <h4 class="mb-3">Positions &amp; Candidates</h4>
+  {% for position in positions %}
+    <div class="card mb-3 shadow-sm">
+      <div class="card-header bg-white">
+        <h5 class="mb-0">{{ position.title }}</h5>
+        {% if position.description %}<small class="text-muted">{{ position.description }}</small>{% endif %}
+      </div>
+      <div class="card-body">
+        {% for nomination in position.approved_nominations %}
+          {% with c=nomination.candidate %}
+          <div class="{% if not forloop.last %}border-bottom pb-3 mb-3{% endif %}">
+            <h6 class="mb-1">{{ c.name }}
+              <small class="text-muted">&middot; {{ c.department }} &middot; Batch {{ c.batch }}</small>
+            </h6>
+            <p class="small text-muted mb-1">
+              {% if c.in_job and c.job_title %}{{ c.job_title }}{% if c.job_address %}, {{ c.job_address }}{% endif %}
+              {% elif c.higher_study_uni_name %}{{ c.higher_study_field }} at {{ c.higher_study_uni_name }}{% endif %}
+              {% if c.linked_in and c.linked_in|slice:":4" == "http" %} &middot; <a href="{{ c.linked_in }}" target="_blank" rel="noopener noreferrer">LinkedIn</a>{% endif %}
+            </p>
+            <p class="mb-0">{{ nomination.manifesto|linebreaksbr }}</p>
+          </div>
+          {% endwith %}
+        {% empty %}
+          <p class="text-muted mb-0">No approved candidates yet.</p>
+        {% endfor %}
+      </div>
+    </div>
+  {% empty %}
+    <p class="text-muted">No positions have been added to this election yet.</p>
+  {% endfor %}
+</div>
+{% endblock %}

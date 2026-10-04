@@ -26,3 +26,12 @@ user.save()
 print("superuser ready")
 PY
 fi
+
+if [ -f "backup_userdata.csv" ]; then
+  python manage.py shell <<'PY'
+from web.models import UserData
+if UserData.objects.count() < 100:
+    import load_backup_userdata
+    load_backup_userdata.run_import()
+PY
+fi

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Nominate - {{ election.title }}{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 720px;">
+  <a href="{% url 'elections:election_detail' election.pk %}" class="text-decoration-none">&larr; Back to election</a>
+  <h2 class="mt-2 mb-1">Nominate yourself</h2>
+  <p class="text-muted">{{ election.title }} &middot; Nominations close {{ election.nomination_end|date:"d M Y, h:i A" }}</p>
+
+  {% include "elections/_messages.html" %}
+
+  <div class="alert alert-info small">
+    You can stand for <strong>one</strong> position in this election. Your nomination will be reviewed
+    by the alumni committee. Your name, batch, department, current role and LinkedIn from your profile
+    are shown alongside your manifesto.
+  </div>
+
+  <form method="post" class="card card-body shadow-sm">
+    {% csrf_token %}
+    <div class="mb-3">
+      <label for="position" class="form-label">Position</label>
+      <select id="position" name="position" class="form-select" required>
+        <option value="" {% if not form.position %}selected{% endif %} disabled>Choose a position</option>
+        {% for position in positions %}
+          <option value="{{ position.pk }}" {% if form.position == position.pk|stringformat:"s" %}selected{% endif %}>
+            {{ position.title }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="mb-3">
+      <label for="manifesto" class="form-label">Manifesto</label>
+      <textarea id="manifesto" name="manifesto" class="form-control" rows="8" maxlength="{{ max_length }}" required
+                placeholder="Why should alumni vote for you? What will you do in this role?">{{ form.manifesto }}</textarea>
+      <div class="form-text">Up to {{ max_length }} characters.</div>
+    </div>
+    <button type="submit" class="btn btn-primary">Submit nomination</button>
+  </form>
+</div>
+{% endblock %}

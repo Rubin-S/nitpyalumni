@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Confirm vote - {{ election.title }}{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 760px;">
+  <h2 class="mb-1">Confirm your ballot</h2>
+  <p class="text-muted">{{ election.title }}</p>
+
+  <div class="alert alert-warning">
+    Please check your choices. <strong>After you submit, your vote cannot be changed.</strong>
+  </div>
+
+  <table class="table table-bordered bg-white">
+    <thead class="table-light"><tr><th>Position</th><th>Your choice</th></tr></thead>
+    <tbody>
+      {% for row in rows %}
+        <tr>
+          <td>{{ row.position.title }}</td>
+          <td>
+            {% if row.nomination %}
+              <strong>{{ row.nomination.candidate.name }}</strong>
+              <small class="text-muted">&middot; {{ row.nomination.candidate.department }} &middot; Batch {{ row.nomination.candidate.batch }}</small>
+            {% else %}
+              <span class="text-muted">Skipped</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="d-flex gap-2">
+    <!-- Go back with the same selections pre-filled -->
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="edit">
+      {% for row in rows %}{% if row.nomination %}
+        <input type="hidden" name="position_{{ row.position.pk }}" value="{{ row.nomination.pk }}">
+      {% endif %}{% endfor %}
+      <button type="submit" class="btn btn-outline-secondary">Change choices</button>
+    </form>
+
+    <form method="post" onsubmit="this.querySelector('button[type=submit]').disabled=true;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="confirm">
+      {% for row in rows %}{% if row.nomination %}
+        <input type="hidden" name="position_{{ row.position.pk }}" value="{{ row.nomination.pk }}">
+      {% endif %}{% endfor %}
+      <button type="submit" class="btn btn-success">Submit my vote</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

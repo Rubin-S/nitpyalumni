@@ -52,6 +52,9 @@ class UserData(models.Model):
     higher_study_field = models.CharField(max_length=255, blank=True, null=True)
     lat = models.DecimalField(default=Decimal("10.9254"), max_digits=9, decimal_places=6)
     lng = models.DecimalField(default=Decimal("79.8380"), max_digits=9, decimal_places=6)
+    # Election voting/candidacy eligibility. Granted explicitly by admins;
+    # see elections.eligibility.can_vote for the full rule.
+    is_eligible_to_vote = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None

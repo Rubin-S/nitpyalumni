@@ -28,6 +28,7 @@ def healthz(_request):
 urlpatterns = [
     path("healthz", healthz),
     path("admin/", admin.site.urls),
+    path("elections/", include("elections.urls")),
     path("", include("web.urls")),
 ]
 

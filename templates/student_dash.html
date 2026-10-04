@@ -80,6 +80,20 @@
                 </div>
             </div>
         </div>
+
+        <div class="col-md-4 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">Alumni Elections</h5>
+                    <p class="card-text">View elections, nominate yourself, and cast your vote.</p>
+                    {%if not is_approved %}
+                    <a class="btn btn-outline btn-danger">Elections</a>
+                    {%else%}
+                    <a href="/elections/" class="btn btn-primary">Elections</a>
+                    {%endif%}
+                </div>
+            </div>
+        </div>
     </div>
 
     <hr class="my-5">

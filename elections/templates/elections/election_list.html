@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Elections - NITPY Alumni{% endblock %}
+
+{% block content %}
+<div class="container">
+  <h2 class="mb-4">Alumni Elections</h2>
+  {% include "elections/_messages.html" %}
+
+  {% if is_staff_preview %}
+    <div class="alert alert-info">
+      <strong>Administrator Preview Mode:</strong> You are browsing elections as staff. Staff accounts cannot nominate or cast ballots.
+    </div>
+  {% elif not is_eligible %}
+    <div class="alert alert-warning">
+      You are not eligible to vote in elections. Contact the alumni committee.
+    </div>
+  {% endif %}
+
+  <h4 class="mt-4 mb-3">Active</h4>
+  {% if active %}
+    <div class="row">
+      {% for election in active %}{% include "elections/_election_card.html" %}{% endfor %}
+    </div>
+  {% else %}
+    <p class="text-muted">No active elections right now.</p>
+  {% endif %}
+
+  <h4 class="mt-4 mb-3">Upcoming</h4>
+  {% if upcoming %}
+    <div class="row">
+      {% for election in upcoming %}{% include "elections/_election_card.html" %}{% endfor %}
+    </div>
+  {% else %}
+    <p class="text-muted">No upcoming elections.</p>
+  {% endif %}
+
+  <h4 class="mt-4 mb-3">Past</h4>
+  {% if past %}
+    <div class="row">
+      {% for election in past %}{% include "elections/_election_card.html" %}{% endfor %}
+    </div>
+  {% else %}
+    <p class="text-muted">No past elections.</p>
+  {% endif %}
+</div>
+{% endblock %}

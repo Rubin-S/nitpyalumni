@@ -24,7 +24,7 @@ ALLOWED_HOSTS = [
     host.strip()
     for host in os.environ.get(
         "ALLOWED_HOSTS",
-        "localhost,127.0.0.1,.onrender.com,nitpyalumni.com,www.nitpyalumni.com",
+        "localhost,127.0.0.1,testserver,.onrender.com,nitpyalumni.com,www.nitpyalumni.com",
     ).split(",")
     if host.strip()
 ]
@@ -46,6 +46,7 @@ if RENDER_EXTERNAL_HOSTNAME:
 
 INSTALLED_APPS = [
     "web",
+    "elections",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",

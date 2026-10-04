@@ -1,0 +1,24 @@
+<div class="col-md-6 col-lg-4 mb-4">
+  <div class="card h-100 shadow-sm">
+    <div class="card-body d-flex flex-column">
+      <div class="mb-2">
+        <span class="badge bg-{{ election.phase_badge }}">{{ election.phase_label }}</span>
+        {% if election.user_has_voted %}<span class="badge bg-success">You voted</span>{% endif %}
+        {% if election.results_published %}<span class="badge bg-primary">Results out</span>{% endif %}
+      </div>
+      <h5 class="card-title">{{ election.title }}</h5>
+      <p class="card-text small text-muted mb-1">
+        Nominations: {{ election.nomination_start|date:"d M Y, h:i A" }} &ndash; {{ election.nomination_end|date:"d M Y, h:i A" }}
+      </p>
+      <p class="card-text small text-muted">
+        Voting: {{ election.voting_start|date:"d M Y, h:i A" }} &ndash; {{ election.voting_end|date:"d M Y, h:i A" }}
+      </p>
+      <div class="mt-auto">
+        <a href="{% url 'elections:election_detail' election.pk %}" class="btn btn-primary btn-sm">View</a>
+        {% if election.results_published %}
+          <a href="{% url 'elections:results' election.pk %}" class="btn btn-outline-primary btn-sm">Results</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>

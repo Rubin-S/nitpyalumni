@@ -26,8 +26,8 @@ export_as_csv.short_description = "Export Selected as CSV"
 # UserData Admin
 @admin.register(UserData)
 class UserDataAdmin(admin.ModelAdmin):
-    list_display = ('user', 'roll_no', 'name', 'account_is_approved', 'batch', 'department', 'in_job')
-    list_filter = ('account_is_approved', 'batch', 'department', 'in_job', 'country', 'state', 'city')
+    list_display = ('user', 'roll_no', 'name', 'account_is_approved', 'is_eligible_to_vote', 'batch', 'department', 'in_job')
+    list_filter = ('account_is_approved', 'is_eligible_to_vote', 'batch', 'department', 'in_job', 'country', 'state', 'city')
     search_fields = ('user__username', 'name', 'roll_no', 'email_id', 'phone_number')
     ordering = ('batch', 'department', 'name')
 
@@ -41,7 +41,22 @@ class UserDataAdmin(admin.ModelAdmin):
             count += 1
         modeladmin.message_user(request, f"{count} alumni account(s) approved and notified.")
 
-    actions = [export_as_csv, approve_selected]
+    @admin.action(description="Mark selected as eligible to vote")
+    def mark_eligible_to_vote(modeladmin, request, queryset):
+        # queryset.update() bypasses UserData.save() (no geocoding / emails).
+        skipped = queryset.filter(account_is_approved=False).count()
+        count = queryset.filter(account_is_approved=True).update(is_eligible_to_vote=True)
+        modeladmin.message_user(
+            request,
+            f"{count} alumni marked eligible to vote. {skipped} skipped (account not approved).",
+        )
+
+    @admin.action(description="Revoke voting eligibility for selected")
+    def revoke_voting_eligibility(modeladmin, request, queryset):
+        count = queryset.update(is_eligible_to_vote=False)
+        modeladmin.message_user(request, f"Voting eligibility revoked for {count} alumni.")
+
+    actions = [export_as_csv, approve_selected, mark_eligible_to_vote, revoke_voting_eligibility]
     
 # JobPosting Admin
 @admin.register(JobPosting)
