@@ -55,10 +55,19 @@ def login_view(request):
         email = (request.POST.get("email") or "").strip()
         password = request.POST.get("password") or ""
 
-        user = User.objects.filter(email__iexact=email).first()
+        user = User.objects.filter(
+            Q(email__iexact=email) | Q(username__iexact=email)
+        ).first()
+        if not user:
+            ud = UserData.objects.filter(
+                Q(roll_no__iexact=email) | Q(email_id__iexact=email)
+            ).select_related("user").first()
+            if ud and ud.user:
+                user = ud.user
+
         user_auth = (
-            authenticate(request, username=user.username, password=password)
-            if user
+            authenticate(request, username=user.username if user else email, password=password)
+            if (user or email)
             else None
         )
 

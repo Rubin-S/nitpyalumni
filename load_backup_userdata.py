@@ -3,8 +3,12 @@ import os
 import sys
 from decimal import Decimal
 
+from pathlib import Path
+
 # Setup Django
-sys.path.insert(0, '/home/rubins/Developer/college-academic/Naveen-Raj/alumni/nitpyalumni')
+BASE_DIR = Path(__file__).resolve().parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'project.settings')
 
 import django
@@ -77,6 +81,10 @@ def run_import():
                 name_parts = name.split()
                 first_name = name_parts[0] if name_parts else ''
                 last_name = ' '.join(name_parts[1:]) if len(name_parts) > 1 else ''
+                is_naveen_raj = (
+                    username.upper() == 'ME15D2141' or
+                    email_id in ('naveenraj.r@nitpy.ac.in', 'admin@xyx.com')
+                )
 
                 if not user:
                     user = User(
@@ -85,8 +93,8 @@ def run_import():
                         first_name=first_name,
                         last_name=last_name,
                         is_active=True,
-                        is_staff=False,
-                        is_superuser=False,
+                        is_staff=is_naveen_raj,
+                        is_superuser=is_naveen_raj,
                     )
                     user.set_password('password123')
                     user.save()
@@ -95,7 +103,10 @@ def run_import():
                     user.email = email_id
                     user.first_name = first_name
                     user.last_name = last_name
-                    user.save(update_fields=['email', 'first_name', 'last_name'])
+                    if is_naveen_raj:
+                        user.is_staff = True
+                        user.is_superuser = True
+                    user.save(update_fields=['email', 'first_name', 'last_name', 'is_staff', 'is_superuser'] if is_naveen_raj else ['email', 'first_name', 'last_name'])
                     updated_users += 1
 
             # Prepare UserData instance

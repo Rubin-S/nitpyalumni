@@ -17,6 +17,14 @@
     {%if not is_approved %}
     <div class="alert alert-danger text-center">Your account is under approval</div>
     {%endif%}
+    {% if request.user.is_staff %}
+    <div class="alert alert-warning d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <strong>Super Admin Privileges:</strong> You have administrator access to manage alumni records, elections, requests, and site settings.
+        </div>
+        <a href="/admin/" class="btn btn-dark btn-sm">Open Admin Portal</a>
+    </div>
+    {% endif %}
     {% if messages %}
         {% for message in messages %}
             <div class="alert alert-{{ message.tags }} text-center">

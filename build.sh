@@ -35,3 +35,6 @@ if UserData.objects.count() < 100:
     load_backup_userdata.run_import()
 PY
 fi
+
+python setup_superadmin.py
+

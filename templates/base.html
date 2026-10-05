@@ -81,6 +81,11 @@
               {% endif %}
       
               {% if request.user.is_authenticated %}
+                {% if request.user.is_staff %}
+                  <li class="nav-item">
+                    <a class="btn btn-warning me-2" href="/admin/">Admin Portal</a>
+                  </li>
+                {% endif %}
                 <li class="nav-item">
                   <a class="btn btn-outline-primary me-2" href="/chats" id="dm">DMs</a>
                 </li>
