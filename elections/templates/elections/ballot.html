@@ -29,8 +29,8 @@
                      name="position_{{ row.position.pk }}" id="n{{ nomination.pk }}"
                      value="{{ nomination.pk }}" {% if row.selected == nomination.pk %}checked{% endif %}>
               <label class="form-check-label" for="n{{ nomination.pk }}">
-                <strong>{{ nomination.candidate.name }}</strong>
-                <small class="text-muted">&middot; {{ nomination.candidate.department }} &middot; Batch {{ nomination.candidate.batch }}</small>
+                <strong>{{ nomination.candidate_name }}</strong>
+                <small class="text-muted">&middot; {{ nomination.candidate_department }} &middot; Batch {{ nomination.candidate_batch }}</small>
               </label>
             </div>
           {% empty %}

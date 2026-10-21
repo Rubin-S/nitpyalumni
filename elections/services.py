@@ -145,7 +145,7 @@ def ballot_positions(election):
                 "nominations",
                 queryset=Nomination.objects.filter(status=Nomination.Status.APPROVED)
                 .select_related("candidate")
-                .order_by("candidate__name"),
+                .order_by("candidate_snapshot__name", "pk"),
                 to_attr="approved_nominations",
             )
         )
@@ -257,7 +257,7 @@ def tally(election):
         )
         candidates = sorted(
             ({"nomination": n, "votes": counts.get(n.pk, 0)} for n in nominations),
-            key=lambda c: (-c["votes"], c["nomination"].candidate.name),
+            key=lambda c: (-c["votes"], c["nomination"].candidate_name),
         )
         top = candidates[0]["votes"] if candidates else 0
         winners = [c for c in candidates if top > 0 and c["votes"] == top]

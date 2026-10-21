@@ -77,6 +77,22 @@ class ElectionIntegrityTests(TestCase):
         with self.assertRaises(IntegrityError), transaction.atomic():
             Election.objects.filter(pk=self.election.pk).update(voting_end=self.election.voting_start)
 
+    def test_candidate_profile_edits_cannot_change_ballot_identity(self):
+        original = dict(self.nomination.candidate_snapshot)
+        candidate = self.nomination.candidate
+        candidate.name = "Changed after nomination"
+        candidate.department = "Changed department"
+        candidate.batch = 2099
+        candidate.save()
+        response = Client()
+        response.force_login(self.voter.user)
+        ballot = response.get(f"/elections/{self.election.pk}/vote/")
+        self.assertContains(ballot, original["name"])
+        self.assertNotContains(ballot, "Changed after nomination")
+        self.nomination.candidate_snapshot = {**original, "name": "Replacement"}
+        with self.assertRaises(ValidationError):
+            self.nomination.save()
+
     def test_csrf_required_and_ballot_pages_not_cached(self):
         client = Client(enforce_csrf_checks=True)
         client.force_login(self.voter.user)
