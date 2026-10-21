@@ -172,6 +172,10 @@
         async function updateUnreadDMCount() {
           try {
             const response = await fetch('/chats/undreaddm/');
+            if (response.redirected || response.status === 401 || response.status === 403) {
+              stopDMPolling();
+              return;
+            }
             if (!response.ok) throw new Error('Network response was not ok');
       
             const data = await response.json();

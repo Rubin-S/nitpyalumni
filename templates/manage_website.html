@@ -9,6 +9,11 @@
     <div class="alert alert-danger">{{ error }}</div>
     {% endif %}
 
+    {% if dns_unavailable %}
+    <div class="alert alert-info">
+        Personal-domain setup is temporarily unavailable. Please contact the site administrator for assistance.
+    </div>
+    {% else %}
     {% if website %}
     <div class="card mb-4">
         <div class="card-body">
@@ -51,8 +56,10 @@
         </div>
     </div>
     {% endif %}
+    {% endif %}
 </div>
 
+{% if not dns_unavailable %}
 <!-- Edit Modal -->
 <div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -91,4 +98,5 @@
     </div>
 </div>
 
+{% endif %}
 {% endblock %}
