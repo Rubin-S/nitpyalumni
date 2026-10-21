@@ -137,6 +137,7 @@ class ElectionAdmin(admin.ModelAdmin):
             except ElectionError as exc:
                 self.message_user(request, f"{election.title}: {exc}", messages.ERROR)
             else:
+                self.log_change(request, election, "Election results published.")
                 self.message_user(request, f"{election.title}: results published.")
 
     @admin.action(description="Email all eligible voters that voting is open")
@@ -147,6 +148,7 @@ class ElectionAdmin(admin.ModelAdmin):
             except ElectionError as exc:
                 self.message_user(request, f"{election.title}: {exc}", messages.ERROR)
             else:
+                self.log_change(request, election, "Voting-open announcements queued.")
                 self.message_user(
                     request,
                     f"{election.title}: {batches} announcement(s) queued for {recipients} voter(s). "
@@ -205,6 +207,7 @@ class NominationAdmin(admin.ModelAdmin):
         for nomination in queryset.select_related("election", "candidate", "position"):
             try:
                 services.review_nomination(nomination, approve=approve)
+                self.log_change(request, nomination, "Nomination approved." if approve else "Nomination rejected.")
                 done += 1
             except ElectionError as exc:
                 self.message_user(request, f"{nomination.candidate.name}: {exc}", messages.ERROR)
