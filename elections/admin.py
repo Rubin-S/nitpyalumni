@@ -3,11 +3,12 @@ import csv
 from web.csv_safe import safe_row
 
 from django.contrib import admin, messages
+from django.db import transaction
 from django.http import HttpResponse
 from django.utils.html import format_html, format_html_join
 
-from elections import services
-from elections.models import Election, Nomination, Position, VoterRecord
+from elections import notifications, services
+from elections.models import Election, ElectionMail, Nomination, Position, VoterRecord
 from elections.services import ElectionError
 
 # NOTE: Vote is intentionally NOT registered, so individual (anonymous) votes
@@ -63,9 +64,25 @@ class ElectionAdmin(admin.ModelAdmin):
         ("Meta", {"fields": ("created_at",), "classes": ("collapse",)}),
     )
     actions = [
-        "publish_results", "email_voters_voting_open", "reset_voting_open_announcement",
+        "publish_results", "email_voters_voting_open", "send_queued_notifications",
         "export_turnout_csv",
     ]
+
+    def get_readonly_fields(self, request, obj=None):
+        fields = super().get_readonly_fields(request, obj)
+        if obj and obj.is_frozen:
+            fields += ("nomination_start", "nomination_end", "voting_start", "voting_end", "is_published")
+        return fields
+
+    def has_delete_permission(self, request, obj=None):
+        return bool(super().has_delete_permission(request, obj) and (obj is None or not obj.is_frozen))
+
+    @transaction.atomic
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        if object_id and str(object_id).isdigit() and request.method == "POST":
+            # Lock before Django binds/validates parent and inline forms.
+            Election.objects.select_for_update().filter(pk=object_id).first()
+        return super().changeform_view(request, object_id, form_url, extra_context)
 
     @admin.display(description="Phase")
     def phase_display(self, obj):
@@ -132,13 +149,14 @@ class ElectionAdmin(admin.ModelAdmin):
             else:
                 self.message_user(
                     request,
-                    f"{election.title}: announcement sent to {recipients} voter(s) in {batches} email(s).",
+                    f"{election.title}: {batches} announcement(s) queued for {recipients} voter(s). "
+                    "Check Election mail for delivery status and the daily sending cap.",
                 )
 
-    @admin.action(description="Reset voting-open announcement flag (allows re-sending)")
-    def reset_voting_open_announcement(self, request, queryset):
-        updated = queryset.update(voting_open_email_sent_at=None)
-        self.message_user(request, f"Announcement flag reset for {updated} election(s).")
+    @admin.action(description="Send queued election notifications (daily cap enforced)")
+    def send_queued_notifications(self, request, queryset):
+        sent = notifications.deliver_pending(election_ids=list(queryset.values_list("pk", flat=True)))
+        self.message_user(request, f"Mail service accepted {sent} notification(s). Check Election mail for queued or uncertain deliveries.")
 
     @admin.action(description="Export turnout (who voted, no choices) as CSV")
     def export_turnout_csv(self, request, queryset):
@@ -170,6 +188,18 @@ class NominationAdmin(admin.ModelAdmin):
         # Nominations come from alumni through the site.
         return False
 
+    def has_delete_permission(self, request, obj=None):
+        # Withdraw/reject before voting instead; keep nomination review history.
+        return False
+
+    @transaction.atomic
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        if object_id and str(object_id).isdigit() and request.method == "POST":
+            election_id = Nomination.objects.filter(pk=object_id).values_list("election_id", flat=True).first()
+            if election_id:
+                Election.objects.select_for_update().get(pk=election_id)
+        return super().changeform_view(request, object_id, form_url, extra_context)
+
     def _review(self, request, queryset, approve):
         done = 0
         for nomination in queryset.select_related("election", "candidate", "position"):
@@ -180,7 +210,7 @@ class NominationAdmin(admin.ModelAdmin):
                 self.message_user(request, f"{nomination.candidate.name}: {exc}", messages.ERROR)
         verb = "approved" if approve else "rejected"
         if done:
-            self.message_user(request, f"{done} nomination(s) {verb}; candidates notified by email.")
+            self.message_user(request, f"{done} nomination(s) {verb}; candidate notifications queued.")
 
     @admin.action(description="Approve selected nominations (emails candidate)")
     def approve_nominations(self, request, queryset):
@@ -198,6 +228,22 @@ class VoterRecordAdmin(admin.ModelAdmin):
     list_filter = ("election",)
     search_fields = ("voter__name", "voter__roll_no")
     list_select_related = ("voter", "election")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(ElectionMail)
+class ElectionMailAdmin(admin.ModelAdmin):
+    list_display = ("election", "recipient", "subject", "status", "created_at", "sent_at")
+    list_filter = ("status", "election")
+    readonly_fields = ("election", "recipient", "subject", "body", "status", "created_at", "sent_at", "event_key", "priority")
 
     def has_add_permission(self, request):
         return False

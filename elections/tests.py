@@ -11,9 +11,9 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from elections import services
+from elections import notifications, services
 from elections.eligibility import can_nominate, can_vote, eligible_voters
-from elections.models import Election, Nomination, Position, Vote, VoterRecord
+from elections.models import Election, ElectionMail, Nomination, Position, Vote, VoterRecord
 from elections.notifications import VOTING_OPEN_BATCH_SIZE
 from elections.services import ElectionError
 from web.models import UserData
@@ -41,13 +41,17 @@ def phase_dates(phase):
 
 
 def make_election(phase=Phase.NOMINATIONS_OPEN, published=True, title="Alumni Elections 2026"):
-    return Election.objects.create(title=title, is_published=published, **phase_dates(phase))
+    election = Election(title=title, is_published=published, **phase_dates(phase))
+    Election.objects.bulk_create([election])
+    return election
 
 
 def set_phase(election, phase):
     for field, value in phase_dates(phase).items():
         setattr(election, field, value)
-    election.save()
+    # Simulate passage of time in fixtures, bypassing production timeline locks.
+    Election.objects.filter(pk=election.pk).update(**phase_dates(phase))
+    election.refresh_from_db()
     return election
 
 
@@ -67,8 +71,21 @@ def make_alumnus(name=None, approved=True, eligible=True):
     )
 
 
+def fixture_position(**kwargs):
+    # Seed a pre-existing ballot without mutating a live election.
+    obj = Position(**kwargs)
+    Position.objects.bulk_create([obj])
+    return obj
+
+
+def fixture_nomination(**kwargs):
+    obj = Nomination(**kwargs)
+    Nomination.objects.bulk_create([obj])
+    return obj
+
+
 def approved_nomination(election, position, candidate, manifesto="Vote for me"):
-    return Nomination.objects.create(
+    return fixture_nomination(
         election=election, position=position, candidate=candidate,
         manifesto=manifesto, status=Nomination.Status.APPROVED,
     )
@@ -155,13 +172,14 @@ class EligibilityTests(TestCase):
 class NominationServiceTests(TestCase):
     def setUp(self):
         self.election = make_election(Phase.NOMINATIONS_OPEN)
-        self.president = Position.objects.create(election=self.election, title="President", order=1)
-        self.secretary = Position.objects.create(election=self.election, title="Secretary", order=2)
+        self.president = fixture_position(election=self.election, title="President", order=1)
+        self.secretary = fixture_position(election=self.election, title="Secretary", order=2)
         self.alice = make_alumnus("Alice")
         mail.outbox.clear()
 
     def test_submit_nomination_success_emails_staff(self):
-        nom = services.submit_nomination(self.election, self.president, self.alice, " My plan ")
+        with self.captureOnCommitCallbacks(execute=True):
+            nom = services.submit_nomination(self.election, self.president, self.alice, " My plan ")
         self.assertEqual(nom.status, Nomination.Status.PENDING)
         self.assertEqual(nom.manifesto, "My plan")
         self.assertEqual(len(mail.outbox), 1)
@@ -189,7 +207,7 @@ class NominationServiceTests(TestCase):
 
     def test_position_from_other_election_rejected(self):
         other = make_election(Phase.NOMINATIONS_OPEN, title="Other")
-        other_pos = Position.objects.create(election=other, title="Treasurer")
+        other_pos = fixture_position(election=other, title="Treasurer")
         with self.assertRaises(ElectionError):
             services.submit_nomination(self.election, other_pos, self.alice, "x")
 
@@ -219,9 +237,12 @@ class NominationServiceTests(TestCase):
             services.withdraw_nomination(nom, self.alice)
 
     def test_review_sends_candidate_email(self):
-        nom = services.submit_nomination(self.election, self.president, self.alice, "x")
+        with self.captureOnCommitCallbacks(execute=True):
+            nom = services.submit_nomination(self.election, self.president, self.alice, "x")
+        notifications.deliver_pending()
         mail.outbox.clear()
-        services.review_nomination(nom, approve=True)
+        with self.captureOnCommitCallbacks(execute=True):
+            services.review_nomination(nom, approve=True)
         nom.refresh_from_db()
         self.assertEqual(nom.status, Nomination.Status.APPROVED)
         self.assertIsNotNone(nom.reviewed_at)
@@ -230,7 +251,8 @@ class NominationServiceTests(TestCase):
         self.assertIn("approved", mail.outbox[0].subject)
 
         mail.outbox.clear()
-        services.review_nomination(nom, approve=False)
+        with self.captureOnCommitCallbacks(execute=True):
+            services.review_nomination(nom, approve=False)
         self.assertIn("rejected", mail.outbox[0].subject)
 
     def test_review_not_allowed_during_voting(self):
@@ -248,8 +270,8 @@ class NominationServiceTests(TestCase):
 class BallotServiceTests(TestCase):
     def setUp(self):
         self.election = make_election(Phase.VOTING_OPEN)
-        self.president = Position.objects.create(election=self.election, title="President", order=1)
-        self.secretary = Position.objects.create(election=self.election, title="Secretary", order=2)
+        self.president = fixture_position(election=self.election, title="President", order=1)
+        self.secretary = fixture_position(election=self.election, title="Secretary", order=2)
         self.cand_p1 = approved_nomination(self.election, self.president, make_alumnus("Priya"))
         self.cand_p2 = approved_nomination(self.election, self.president, make_alumnus("Pranav"))
         self.cand_s1 = approved_nomination(self.election, self.secretary, make_alumnus("Sara"))
@@ -291,7 +313,7 @@ class BallotServiceTests(TestCase):
         self.assertFalse(VoterRecord.objects.exists())
 
     def test_unapproved_candidate_rejected(self):
-        pending = Nomination.objects.create(
+        pending = fixture_nomination(
             election=self.election, position=self.president,
             candidate=make_alumnus("Pending"), manifesto="x",
         )
@@ -300,7 +322,7 @@ class BallotServiceTests(TestCase):
 
     def test_position_from_other_election_rejected(self):
         other = make_election(Phase.VOTING_OPEN, title="Other")
-        other_pos = Position.objects.create(election=other, title="Treasurer")
+        other_pos = fixture_position(election=other, title="Treasurer")
         other_nom = approved_nomination(other, other_pos, make_alumnus())
         with self.assertRaises(ElectionError):
             services.cast_ballot(self.election, self.voter, {other_pos.pk: other_nom.pk})
@@ -322,7 +344,8 @@ class BallotServiceTests(TestCase):
         self.assertEqual(Vote.objects.count(), 1)
 
     def test_receipt_email_has_no_choices(self):
-        services.cast_ballot(self.election, self.voter, {self.president.pk: self.cand_p1.pk})
+        with self.captureOnCommitCallbacks(execute=True):
+            services.cast_ballot(self.election, self.voter, {self.president.pk: self.cand_p1.pk})
         self.assertEqual(len(mail.outbox), 1)
         receipt = mail.outbox[0]
         self.assertEqual(receipt.to, [self.voter.email_id])
@@ -350,8 +373,8 @@ class SecrecyTests(TestCase):
 class ResultsTests(TestCase):
     def setUp(self):
         self.election = make_election(Phase.VOTING_OPEN)
-        self.president = Position.objects.create(election=self.election, title="President", order=1)
-        self.secretary = Position.objects.create(election=self.election, title="Secretary", order=2)
+        self.president = fixture_position(election=self.election, title="President", order=1)
+        self.secretary = fixture_position(election=self.election, title="Secretary", order=2)
         self.p1 = approved_nomination(self.election, self.president, make_alumnus("Priya"))
         self.p2 = approved_nomination(self.election, self.president, make_alumnus("Pranav"))
         self.s1 = approved_nomination(self.election, self.secretary, make_alumnus("Sara"))
@@ -409,7 +432,7 @@ class ResultsTests(TestCase):
 class ElectionViewTests(TestCase):
     def setUp(self):
         self.election = make_election(Phase.NOMINATIONS_OPEN)
-        self.president = Position.objects.create(election=self.election, title="President", order=1)
+        self.president = fixture_position(election=self.election, title="President", order=1)
         self.alice = make_alumnus("Alice")
         self.detail_url = reverse("elections:election_detail", args=[self.election.pk])
 
@@ -539,7 +562,7 @@ class AdminTests(TestCase):
         self.admin_user = User.objects.create_superuser("admin", "admin@example.com", "pw")
         self.client.force_login(self.admin_user)
         self.election = make_election(Phase.VOTING_OPEN)
-        self.position = Position.objects.create(election=self.election, title="President")
+        self.position = fixture_position(election=self.election, title="President")
         self.candidate = approved_nomination(self.election, self.position, make_alumnus("Priya"))
         self.changelist = reverse("admin:elections_election_changelist")
 
@@ -569,22 +592,16 @@ class AdminTests(TestCase):
         self.assertTrue(self.election.results_published)
 
     def test_email_voters_voting_open_batches_and_only_once(self):
-        voters = [make_alumnus() for _ in range(VOTING_OPEN_BATCH_SIZE + 5)]
+        voters = [make_alumnus() for _ in range(55)]
         make_alumnus(eligible=False)
         make_alumnus(approved=False)
-        mail.outbox.clear()
         self.run_action("email_voters_voting_open")
-        recipients = eligible_voters().count()
-        self.assertGreaterEqual(recipients, len(voters))
-        expected_batches = -(-recipients // VOTING_OPEN_BATCH_SIZE)
-        self.assertEqual(len(mail.outbox), expected_batches)
-        all_bcc = [addr for m in mail.outbox for addr in m.bcc]
-        self.assertEqual(len(all_bcc), recipients)
-        self.assertEqual(set(all_bcc), set(eligible_voters().values_list("email_id", flat=True)))
-
-        mail.outbox.clear()
+        queued = ElectionMail.objects.filter(election=self.election, priority=30)
+        self.assertEqual(queued.count(), eligible_voters().count())
+        self.assertEqual(set(queued.values_list("recipient", flat=True)),
+                         set(eligible_voters().values_list("user__email", flat=True)))
         self.run_action("email_voters_voting_open")
-        self.assertEqual(len(mail.outbox), 0)
+        self.assertEqual(queued.count(), eligible_voters().count())
 
     def test_email_voters_refused_outside_voting(self):
         set_phase(self.election, Phase.NOMINATIONS_OPEN)
@@ -594,7 +611,7 @@ class AdminTests(TestCase):
 
     def test_nomination_approve_action(self):
         set_phase(self.election, Phase.NOMINATIONS_CLOSED)
-        pending = Nomination.objects.create(
+        pending = fixture_nomination(
             election=self.election, position=self.position,
             candidate=make_alumnus("Pending"), manifesto="x",
         )
@@ -643,8 +660,8 @@ class AdminTests(TestCase):
         make_alumnus()
         mail.outbox.clear()
         services.announce_voting_open(self.election)
-        self.assertEqual(len(mail.outbox), 1)
-        body = mail.outbox[0].body
+        queued = ElectionMail.objects.filter(election=self.election, priority=30).first()
+        body = queued.body
         expected_time = f"{timezone.localtime(self.election.voting_end):%d %b %Y, %I:%M %p}"
         self.assertIn(expected_time, body)
 
@@ -684,7 +701,7 @@ class AdminTests(TestCase):
             services.check_can_cast(empty_election, voter)
         self.assertIn("no positions", str(ctx.exception))
 
-        pos = Position.objects.create(election=empty_election, title="Chair")
+        pos = fixture_position(election=empty_election, title="Chair")
         with self.assertRaises(ElectionError) as ctx:
             services.check_can_cast(empty_election, voter)
         self.assertIn("no approved candidates", str(ctx.exception))
@@ -707,7 +724,7 @@ class AdminTests(TestCase):
 
     def test_nomination_guards_when_voting_started(self):
         # Cannot approve or reject a nomination once voting has started
-        nom = Nomination.objects.create(
+        nom = fixture_nomination(
             election=self.election, position=self.position, candidate=make_alumnus("Late"),
             manifesto="Hi", status=Nomination.Status.PENDING,
         )
@@ -721,22 +738,18 @@ class AdminTests(TestCase):
 
     def test_announce_voting_open_smtp_failure_handling(self):
         make_alumnus()
+        services.announce_voting_open(self.election)
         with mock.patch("elections.notifications.get_connection") as mock_conn:
-            mock_inst = mock_conn.return_value
-            mock_inst.send_messages.return_value = 0
-            with self.assertRaises(ElectionError) as ctx:
-                services.announce_voting_open(self.election)
-            self.assertIn("No announcement emails could be delivered", str(ctx.exception))
-            # Flag should NOT be set
-            self.election.refresh_from_db()
-            self.assertIsNone(self.election.voting_open_email_sent_at)
-
-    def test_reset_voting_open_announcement_action(self):
-        self.election.voting_open_email_sent_at = timezone.now()
-        self.election.save()
-        self.run_action("reset_voting_open_announcement")
+            mock_conn.return_value.open.side_effect = OSError("private provider detail")
+            self.assertEqual(notifications.deliver_pending(), 0)
+        self.assertTrue(ElectionMail.objects.filter(status=ElectionMail.Status.PENDING).exists())
         self.election.refresh_from_db()
-        self.assertIsNone(self.election.voting_open_email_sent_at)
+        self.assertIsNotNone(self.election.voting_open_email_sent_at)
+
+    def test_reset_voting_open_announcement_action_removed(self):
+        self.assertNotIn("reset_voting_open_announcement",
+                         admin.site._registry[Election].get_actions(
+                             type("Request", (), {"user": self.admin_user, "GET": {}})()))
 
     def test_turnout_caps_at_100_when_eligible_reduced(self):
         voter = make_alumnus("Active Voter")

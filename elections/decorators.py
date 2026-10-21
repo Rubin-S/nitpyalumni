@@ -1,6 +1,7 @@
 from functools import wraps
 
 from django.shortcuts import redirect
+from django.utils.cache import add_never_cache_headers
 
 from web.models import UserData
 
@@ -17,9 +18,13 @@ def approved_alumni_required(view_func):
         if not userdata or not userdata.account_is_approved:
             if request.user.is_staff:
                 request.userdata = userdata
-                return view_func(request, *args, **kwargs)
+                response = view_func(request, *args, **kwargs)
+                add_never_cache_headers(response)
+                return response
             return redirect("/")
         request.userdata = userdata
-        return view_func(request, *args, **kwargs)
+        response = view_func(request, *args, **kwargs)
+        add_never_cache_headers(response)
+        return response
 
     return wrapper

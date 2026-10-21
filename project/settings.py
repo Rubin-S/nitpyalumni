@@ -157,6 +157,9 @@ EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "true").lower() in {"1", "true",
 EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "alumni@nitpy.ac.in")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 EMAIL_TIMEOUT = 10
+# Shares provider quota with password recovery and other application mail.
+ELECTION_EMAIL_DAILY_LIMIT = max(0, int(os.environ.get("ELECTION_EMAIL_DAILY_LIMIT", "20")))
+ELECTION_MAIL_WORKER_ENABLED = os.environ.get("ELECTION_MAIL_WORKER_ENABLED", "true").lower() == "true"
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER or "alumni@nitpy.ac.in")
 PASSWORD_RESET_TIMEOUT = 3600
 CHAT_BACKEND = os.environ.get("CHAT_BACKEND", "postgres").lower()
