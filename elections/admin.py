@@ -112,10 +112,10 @@ class ElectionAdmin(admin.ModelAdmin):
                 "<li>{}{} ({}) - <strong>{}</strong> vote(s){}</li>",
                 (
                     (
-                        c["nomination"].candidate.name,
+                        c["nomination"].candidate_name,
                         "" if c["nomination"].status == Nomination.Status.APPROVED
                         else f" [{c['nomination'].get_status_display()}]",
-                        c["nomination"].candidate.roll_no,
+                        c["nomination"].candidate_roll_no,
                         c["votes"],
                         " - TIE" if c["is_winner"] and row["is_tie"]
                         else (" - WINNER" if c["is_winner"] else ""),
@@ -181,7 +181,7 @@ class NominationAdmin(admin.ModelAdmin):
     search_fields = ("candidate__name", "candidate__roll_no", "position__title", "election__title")
     list_select_related = ("candidate", "position", "election")
     readonly_fields = (
-        "election", "position", "candidate", "manifesto", "status", "created_at", "reviewed_at",
+        "election", "position", "candidate", "candidate_snapshot", "manifesto", "status", "created_at", "reviewed_at",
     )
     fields = readonly_fields + ("review_note",)
     actions = ["approve_nominations", "reject_nominations"]
@@ -210,7 +210,7 @@ class NominationAdmin(admin.ModelAdmin):
                 self.log_change(request, nomination, "Nomination approved." if approve else "Nomination rejected.")
                 done += 1
             except ElectionError as exc:
-                self.message_user(request, f"{nomination.candidate.name}: {exc}", messages.ERROR)
+                self.message_user(request, f"{nomination.candidate_name}: {exc}", messages.ERROR)
         verb = "approved" if approve else "rejected"
         if done:
             self.message_user(request, f"{done} nomination(s) {verb}; candidate notifications queued.")

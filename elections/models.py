@@ -176,6 +176,7 @@ class Nomination(models.Model):
     candidate = models.ForeignKey(
         "web.UserData", on_delete=models.CASCADE, related_name="nominations"
     )
+    candidate_snapshot = models.JSONField(default=dict, editable=False)
     manifesto = models.TextField(max_length=MANIFESTO_MAX_LENGTH)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
     review_note = models.CharField(
@@ -186,7 +187,7 @@ class Nomination(models.Model):
     reviewed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        ordering = ["position__order", "candidate__name"]
+        ordering = ["position__order", "id"]
         constraints = [
             # One *active* nomination per person per election;
             # withdrawn/rejected nominees may nominate again.
@@ -198,13 +199,31 @@ class Nomination(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.candidate.name} for {self.position.title} [{self.get_status_display()}]"
+        return f"{self.candidate_name} for {self.position.title} [{self.get_status_display()}]"
+
+    @property
+    def candidate_name(self):
+        return self.candidate_snapshot.get("name", self.candidate.name)
+
+    @property
+    def candidate_department(self):
+        return self.candidate_snapshot.get("department", self.candidate.department)
+
+    @property
+    def candidate_batch(self):
+        return self.candidate_snapshot.get("batch", self.candidate.batch)
+
+    @property
+    def candidate_roll_no(self):
+        return self.candidate_snapshot.get("roll_no", self.candidate.roll_no)
 
     def clean(self):
         if self.position_id and self.election_id and self.position.election_id != self.election_id:
             raise ValidationError({"position": "Position does not belong to this election."})
 
         orig = Nomination.objects.filter(pk=self.pk).first() if self.pk else None
+        if orig and orig.candidate_snapshot != self.candidate_snapshot:
+            raise ValidationError("A nomination's submitted candidate identity cannot be changed.")
         if orig and any(getattr(orig, f) != getattr(self, f) for f in ("election_id", "position_id", "candidate_id")):
             raise ValidationError("The candidate, election and position of a nomination cannot be reassigned.")
         if self.election_id and Election.objects.get(pk=self.election_id).is_frozen:
@@ -229,6 +248,11 @@ class Nomination(models.Model):
 
         with transaction.atomic():
             Election.objects.select_for_update().get(pk=self.election_id)
+            if is_new:
+                self.candidate_snapshot = {
+                    "name": self.candidate.name, "department": self.candidate.department,
+                    "batch": self.candidate.batch, "roll_no": self.candidate.roll_no,
+                }
             self.full_clean()
             super().save(*args, **kwargs)
             if is_new:

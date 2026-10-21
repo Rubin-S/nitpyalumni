@@ -43,8 +43,8 @@ def notify_staff_new_nomination(nomination):
     from web.models import recipient_list
     for recipient in set(recipient_list):
         queue(nomination.election, f"nomination-created:{nomination.pk}", recipient,
-              f"New election nomination by: {nomination.candidate.name}",
-              f"{nomination.candidate.name} ({nomination.candidate.roll_no}) has nominated themselves "
+              f"New election nomination by: {nomination.candidate_name}",
+              f"{nomination.candidate_name} ({nomination.candidate_roll_no}) has nominated themselves "
               f"for '{nomination.position.title}' in '{nomination.election.title}'. "
               "Review the nomination in the admin panel.")
     _deliver_after_commit()
@@ -52,7 +52,7 @@ def notify_staff_new_nomination(nomination):
 
 def notify_candidate_status(nomination):
     verdict = "approved" if nomination.status == nomination.Status.APPROVED else "rejected"
-    body = (f"Hi {nomination.candidate.name},\n\nYour nomination for '{nomination.position.title}' "
+    body = (f"Hi {nomination.candidate_name},\n\nYour nomination for '{nomination.position.title}' "
             f"in '{nomination.election.title}' has been {verdict}.\n")
     if nomination.review_note:
         body += f"\nNote from the alumni committee: {nomination.review_note}\n"

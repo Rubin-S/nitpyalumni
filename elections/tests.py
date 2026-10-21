@@ -80,6 +80,10 @@ def fixture_position(**kwargs):
 
 def fixture_nomination(**kwargs):
     obj = Nomination(**kwargs)
+    obj.candidate_snapshot = {
+        "name": obj.candidate.name, "department": obj.candidate.department,
+        "batch": obj.candidate.batch, "roll_no": obj.candidate.roll_no,
+    }
     Nomination.objects.bulk_create([obj])
     return obj
 

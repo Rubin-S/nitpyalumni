@@ -18,8 +18,8 @@
           <td>{{ row.position.title }}</td>
           <td>
             {% if row.nomination %}
-              <strong>{{ row.nomination.candidate.name }}</strong>
-              <small class="text-muted">&middot; {{ row.nomination.candidate.department }} &middot; Batch {{ row.nomination.candidate.batch }}</small>
+              <strong>{{ row.nomination.candidate_name }}</strong>
+              <small class="text-muted">&middot; {{ row.nomination.candidate_department }} &middot; Batch {{ row.nomination.candidate_batch }}</small>
             {% else %}
               <span class="text-muted">Skipped</span>
             {% endif %}

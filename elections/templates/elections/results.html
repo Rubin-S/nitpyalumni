@@ -30,8 +30,8 @@
         {% for c in row.candidates %}
           <li class="list-group-item d-flex justify-content-between align-items-center">
             <span>
-              {{ c.nomination.candidate.name }}
-              <small class="text-muted">&middot; {{ c.nomination.candidate.department }} &middot; Batch {{ c.nomination.candidate.batch }}</small>
+              {{ c.nomination.candidate_name }}
+              <small class="text-muted">&middot; {{ c.nomination.candidate_department }} &middot; Batch {{ c.nomination.candidate_batch }}</small>
               {% if c.is_winner and not row.is_tie %}<span class="badge bg-success ms-2">Winner</span>{% endif %}
               {% if c.is_winner and row.is_tie %}<span class="badge bg-warning text-dark ms-2">Tied</span>{% endif %}
             </span>
