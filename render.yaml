@@ -1,6 +1,6 @@
 databases:
   - name: nitpyalumni-db
-    plan: free
+    # Preserve the existing production compute plan during Blueprint sync.
     region: oregon
     postgresMajorVersion: "16"
 
@@ -8,7 +8,7 @@ services:
   - type: web
     name: nitpyalumni
     runtime: python
-    plan: free
+    # Preserve the existing production compute plan during Blueprint sync.
     region: oregon
     buildCommand: chmod +x build.sh && ./build.sh
     startCommand: gunicorn project.wsgi:application --bind 0.0.0.0:$PORT --workers 1 --timeout 60
@@ -25,9 +25,3 @@ services:
         fromDatabase:
           name: nitpyalumni-db
           property: connectionString
-      - key: DJANGO_SUPERUSER_USERNAME
-        value: admin
-      - key: DJANGO_SUPERUSER_EMAIL
-        value: admin@nitpyalumni.com
-      - key: DJANGO_SUPERUSER_PASSWORD
-        generateValue: true

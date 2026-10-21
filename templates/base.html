@@ -180,7 +180,10 @@
       
             if (count > 0) {
               // Add badge with count
-              dmBtn.innerHTML = `DMs <span class="badge bg-danger ms-1">${count}</span>`;
+              const badge = document.createElement('span');
+              badge.className = 'badge bg-danger ms-1';
+              badge.textContent = count;
+              dmBtn.replaceChildren(document.createTextNode('DMs '), badge);
             } else {
               // No unread messages, just plain "DMs"
               dmBtn.textContent = 'DMs';

@@ -106,6 +106,7 @@ else:
     }
 
 AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "web.security.LegacyPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
@@ -114,7 +115,6 @@ AUTH_PASSWORD_VALIDATORS = [
 
 AUTHENTICATION_BACKENDS = [
     "web.auth_backend.EmailOrUsernameModelBackend",
-    "django.contrib.auth.backends.ModelBackend",
 ]
 
 LANGUAGE_CODE = "en-us"

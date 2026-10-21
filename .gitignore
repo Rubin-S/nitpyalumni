@@ -10,3 +10,14 @@ staticfiles/
 .venv/
 venv/
 .python-version
+node_modules/
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+*.sql
+/backup*.csv
+/backup*.tsv
+/backup*.json
+/backups/
+/.render/

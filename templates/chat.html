@@ -86,9 +86,10 @@
     <div id="date-popup"></div>
 
     <div class="chat-footer">
-      <input type="text" id="chat-input" class="form-control me-2" placeholder="Type a message...">
+      <input type="text" id="chat-input" maxlength="4000" class="form-control me-2" placeholder="Type a message...">
       <button id="send-btn" class="btn btn-success">Send</button>
     </div>
+    <div id="chat-error" class="text-danger px-3" role="alert"></div>
   </div>
 </div>
 
@@ -127,12 +128,7 @@
 
   function appendMessage(msg, isSender) {
     showDatePopup(msg.datetime_sent);
-    const bubble = document.createElement("div");
-    bubble.className = `chat-bubble ${isSender ? 'sent' : 'received'}`;
-    bubble.innerHTML = `
-      <div>${msg.text}</div>
-      <div class="chat-time">${new Date(msg.datetime_sent).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-    `;
+    const bubble = messageBubble(msg, isSender);
     chatBox.appendChild(bubble);
     chatBox.scrollTop = chatBox.scrollHeight;
   }
@@ -140,20 +136,39 @@
   function prependMessage(msg) {
     const isSender = msg.sender_id === userId;
     const scrollOffset = chatBox.scrollHeight - chatBox.scrollTop;
-    const bubble = document.createElement("div");
-    bubble.className = `chat-bubble ${isSender ? 'sent' : 'received'}`;
-    bubble.innerHTML = `
-      <div>${msg.text}</div>
-      <div class="chat-time">${new Date(msg.datetime_sent).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-    `;
+    const bubble = messageBubble(msg, isSender);
     showDatePopup(msg.datetime_sent);
     chatBox.insertBefore(bubble, chatBox.firstChild);
     chatBox.scrollTop = chatBox.scrollHeight - scrollOffset;
   }
 
+  function messageBubble(msg, isSender) {
+    const bubble = document.createElement('div');
+    bubble.className = `chat-bubble ${isSender ? 'sent' : 'received'}`;
+    const text = document.createElement('div');
+    text.textContent = msg.text;
+    text.style.whiteSpace = 'pre-wrap';
+    const time = document.createElement('div');
+    time.className = 'chat-time';
+    time.textContent = new Date(msg.datetime_sent).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+    bubble.append(text, time);
+    return bubble;
+  }
+
+  async function chatRequest(url, options) {
+    const response = await fetch(url, options);
+    if (!response.ok || response.redirected) {
+      throw new Error('Messaging is unavailable. Your account and recipient must both be approved.');
+    }
+    return response.json();
+  }
+
+  function showChatError(error) {
+    document.getElementById('chat-error').textContent = error.message;
+  }
+
   function loadInitialMessages() {
-    fetch(`/chat/${otherUserId}/load?offset=${offset}`)
-      .then(res => res.json())
+    chatRequest(`/chat/${otherUserId}/load?offset=${offset}`)
       .then(data => {
         if (data.messages.length === 0) {
           chatBox.innerHTML = `<div class="text-center text-muted">Start of conversation</div>`;
@@ -162,14 +177,13 @@
           data.messages.forEach(msg => appendMessage(msg, msg.sender_id === userId));
           offset += data.messages.length;
         }
-      });
+      }).catch(showChatError);
   }
 
   function loadOlderMessages() {
     if (allLoaded) return;
     const prevHeight = chatBox.scrollHeight;
-    fetch(`/chat/${otherUserId}/load?offset=${offset}`)
-      .then(res => res.json())
+    chatRequest(`/chat/${otherUserId}/load?offset=${offset}`)
       .then(data => {
         if (data.messages.length === 0) {
           allLoaded = true;
@@ -178,19 +192,18 @@
         data.messages.forEach(prependMessage);
         offset += data.messages.length;
         chatBox.scrollTop = chatBox.scrollHeight - prevHeight;
-      });
+      }).catch(showChatError);
   }
 
   function pollNewMessages() {
-    fetch(`/chat/${otherUserId}/update`)
-      .then(res => res.json())
+    chatRequest(`/chat/${otherUserId}/update`, {
+        method: 'POST', headers: {'X-CSRFToken': csrfToken}
+      })
       .then(data => {
         data.messages.forEach(msg => {
-          if (!msg.is_seen) {
-            appendMessage(msg, false);
-          }
+          appendMessage(msg, false);
         });
-      });
+      }).catch(showChatError);
   }
 
   function sendMessage() {
@@ -198,7 +211,7 @@
     const text = input.value.trim();
     if (!text) return;
 
-    fetch(`/chat/${otherUserId}/add_message`, {
+    chatRequest(`/chat/${otherUserId}/add_message`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -206,11 +219,11 @@
       },
       body: JSON.stringify({ text })
     })
-    .then(res => res.json())
     .then(() => {
       appendMessage({ text, datetime_sent: new Date() }, true);
       input.value = "";
-    });
+      document.getElementById('chat-error').textContent = '';
+    }).catch(showChatError);
   }
 
   document.getElementById("send-btn").addEventListener("click", sendMessage);

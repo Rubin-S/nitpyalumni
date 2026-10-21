@@ -65,7 +65,7 @@
     .then(data => {
       markerGroup.clearLayers();
       const tbody = document.querySelector('#alumniTable tbody');
-      tbody.innerHTML = '';
+      tbody.replaceChildren();
 
       if (search !== '' && data.alumni.length > 0 && triggeredBy === 'search') {
         const first = data.alumni[0];
@@ -73,25 +73,32 @@
       }
 
       data.alumni.forEach(alumni => {
+        const popup = document.createElement('div');
+        const name = document.createElement('b');
+        name.textContent = alumni.name;
+        popup.append(name, document.createElement('br'), document.createTextNode(alumni.department ?? ''),
+          document.createElement('br'), document.createTextNode(alumni.job_title ?? ''));
         const marker = L.marker([alumni.lat, alumni.lng])
-          .bindPopup(`<b>${alumni.name}</b><br>${alumni.department}<br>${alumni.job_title}`);
+          .bindPopup(popup);
         markerGroup.addLayer(marker);
 
         const isCurrentUser = currentUserId === alumni.id;
 
         const nameText = isCurrentUser ? `${alumni.name} (You)` : alumni.name;
-        const contactHTML = isCurrentUser
-          ? `<span class="badge bg-secondary">This is you</span>`
-          : `<a href="/contact-alumni/${alumni.id}" class="btn btn-sm btn-outline-primary">Contact</a>`;
-
-        const row = `<tr>
-          <td>${nameText}</td>
-          <td>${alumni.batch}</td>
-          <td>${alumni.department}</td>
-          <td>${alumni.job_title}</td>
-          <td>${contactHTML}</td>
-        </tr>`;
-        tbody.insertAdjacentHTML('beforeend', row);
+        const row = document.createElement('tr');
+        for (const value of [nameText, alumni.batch, alumni.department, alumni.job_title]) {
+          const cell = document.createElement('td');
+          cell.textContent = value ?? '';
+          row.appendChild(cell);
+        }
+        const contactCell = document.createElement('td');
+        const contact = document.createElement(isCurrentUser ? 'span' : 'a');
+        contact.className = isCurrentUser ? 'badge bg-secondary' : 'btn btn-sm btn-outline-primary';
+        contact.textContent = isCurrentUser ? 'This is you' : 'Contact';
+        if (!isCurrentUser) contact.href = `/contact-alumni/${encodeURIComponent(alumni.id)}/`;
+        contactCell.appendChild(contact);
+        row.appendChild(contactCell);
+        tbody.appendChild(row);
       });
     });
   }

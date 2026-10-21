@@ -50,8 +50,22 @@ jobs:
       - name: Check for missing migrations
         run: python manage.py makemigrations --check --dry-run
 
+      - name: Reject operational data in source control
+        run: python scripts/check_repository_data.py
+
       - name: Run Django checks
         run: python manage.py check
 
       - name: Run tests
         run: python manage.py test --verbosity 2
+
+  browser-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install browser test dependencies
+        run: npm ci --ignore-scripts
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Check user content stays inert in the browser
+        run: npm run test:browser

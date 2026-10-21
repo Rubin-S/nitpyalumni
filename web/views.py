@@ -1,4 +1,5 @@
 import json
+from functools import wraps
 import hashlib
 import os
 import re
@@ -20,10 +21,12 @@ from django.core.mail import EmailMessage
 from django.conf import settings
 from django.template.loader import render_to_string
 from django.db.models import Q, Prefetch
-from django.http import JsonResponse, HttpResponseForbidden
-from django.views.decorators.http import require_POST
+from django.http import JsonResponse, HttpResponseForbidden, Http404
+from django.views.decorators.http import require_POST, require_GET, require_http_methods
 from django.utils.timezone import now
 from pymongo import MongoClient
+from pymongo.errors import PyMongoError
+from web.access import approved_alumni_required
 
 from web.models import (
     UserData, DonateBook, JobPosting, Talk, Website,
@@ -55,21 +58,7 @@ def login_view(request):
         email = (request.POST.get("email") or "").strip()
         password = request.POST.get("password") or ""
 
-        user = User.objects.filter(
-            Q(email__iexact=email) | Q(username__iexact=email)
-        ).first()
-        if not user:
-            ud = UserData.objects.filter(
-                Q(roll_no__iexact=email) | Q(email_id__iexact=email)
-            ).select_related("user").first()
-            if ud and ud.user:
-                user = ud.user
-
-        user_auth = (
-            authenticate(request, username=user.username if user else email, password=password)
-            if (user or email)
-            else None
-        )
+        user_auth = authenticate(request, username=email, password=password)
 
         if user_auth is not None:
             login(request, user_auth)
@@ -349,14 +338,11 @@ def auth_logout(request):
     return redirect('login')
 
 @login_required
+@approved_alumni_required()
+@require_http_methods(["GET", "POST"])
 def contact_alumni(request, user_id):
-    current_user = UserData.objects.filter(user=request.user).first()
-    if not current_user or not current_user.account_is_approved:
-        return redirect('/')
+    receiver = _chat_peer(request, user_id)
     try:
-        receiver_user = get_object_or_404(User, pk=user_id)
-        receiver = get_object_or_404(UserData, user=receiver_user)
-        
         if request.method == 'POST':
             subject = request.POST.get('subject')
             message = request.POST.get('message')
@@ -378,7 +364,7 @@ def contact_alumni(request, user_id):
             email.send()
             messages.success(request, "Your Message is sent successfully")
 
-            return redirect('/alumni-map')
+            return redirect('alumni_map')
         return redirect(f'/chat/{receiver.user.id}/')
     except Exception:
         return redirect('/')
@@ -564,11 +550,7 @@ def profile_view(request):
 
 
 
-# CHAT FEATURE Added by Darshitha EE23B1033
-
-
-
-
+# Messaging: SQL owns identity/approval; MongoDB stores message content only.
 _mongo_db = None
 
 
@@ -581,214 +563,220 @@ def get_chat_db():
         return None
     _mongo_db = MongoClient(mongo_uri, serverSelectionTimeoutMS=3000)["ChatDB"]
     return _mongo_db
-# count number of unread DMs
-@login_required
-def undread_dm(request):
-    db = get_chat_db()
-    if db is None:
-        return JsonResponse({"count": 0})
-    user_id = str(request.user.id)
-    total_unseen = db.Chats.count_documents({
-        "receiver_id": user_id,
-        "is_seen": False
-    })
-    return JsonResponse({"count": total_unseen})
-# Chat Key Generator
+
+
+def chat_backend_errors(view):
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        try:
+            return view(*args, **kwargs)
+        except PyMongoError:
+            # Database exceptions may contain credentials/URIs; never expose them.
+            logger.warning("Messaging database unavailable")
+            return JsonResponse({"error": "Messaging is temporarily unavailable."}, status=503)
+    return wrapper
+
+
+def _chat_peer(request, user_id):
+    try:
+        peer_id = int(user_id)
+    except (TypeError, ValueError):
+        raise Http404
+    if peer_id <= 0 or peer_id > 9223372036854775807 or peer_id == request.user.pk:
+        raise Http404
+    return get_object_or_404(
+        UserData.objects.select_related("user"), user_id=peer_id,
+        account_is_approved=True, user__is_active=True,
+    )
+
+
 def get_chat_key(uid1, uid2):
+    # Retain the legacy storage key so existing conversations remain readable.
+    # This is only an index hint. Authorization always checks both participants.
     h1 = hashlib.md5(uid1.encode()).hexdigest()
     h2 = hashlib.md5(uid2.encode()).hexdigest()
     return str(int(h1, 16) ^ int(h2, 16))
 
+
+def _conversation_query(sender_id, recipient_id):
+    return {
+        "chat_key": get_chat_key(sender_id, recipient_id),
+        "$or": [
+            {"sender_id": sender_id, "receiver_id": recipient_id},
+            {"sender_id": recipient_id, "receiver_id": sender_id},
+        ],
+    }
+
+
+def _message_payload(message):
+    # Do not return arbitrary MongoDB fields to the client.
+    return {key: str(message["_id"]) if key == "_id" else message.get(key)
+            for key in ("_id", "sender_id", "receiver_id", "text", "datetime_sent", "is_seen", "seen_time")}
+
+
 def update_user_metadata(user_id, other_user_id):
     db = get_chat_db()
-    if db is None:
-        return
     result = db.UserMetaData.update_one(
         {"user_id": user_id, "chats.other_user_id": other_user_id},
-        {"$set": {"chats.$.last_message_time": now()}}
+        {"$set": {"chats.$.last_message_time": now()}},
     )
     if result.matched_count == 0:
         db.UserMetaData.update_one(
             {"user_id": user_id},
-            {"$push": {"chats": {
-                "other_user_id": other_user_id,
-                "last_message_time": now()
-            }}},
-            upsert=True
+            {"$push": {"chats": {"other_user_id": other_user_id, "last_message_time": now()}}},
+            upsert=True,
         )
-# 1. /chats
+
+
+def _chat_list(request, db):
+    user_id = str(request.user.pk)
+    metadata = db.UserMetaData.find_one({"user_id": user_id}) or {}
+    chats = metadata.get("chats", [])
+    # Treat legacy Mongo metadata as untrusted; identity comes from SQL.
+    peer_ids = {int(c["other_user_id"]) for c in chats
+                if isinstance(c.get("other_user_id"), str)
+                and c["other_user_id"].isascii() and c["other_user_id"].isdigit()
+                and len(c["other_user_id"]) <= 18}
+    profiles = {p.user_id: p for p in UserData.objects.filter(
+        user_id__in=peer_ids, account_is_approved=True, user__is_active=True,
+    ).exclude(user=request.user)}
+    result = []
+    seen = set()
+    for chat in sorted(chats, key=lambda c: str(c.get("last_message_time", "")), reverse=True):
+        try:
+            peer_id = int(chat.get("other_user_id", ""))
+        except (ValueError, TypeError):
+            continue
+        if peer_id not in profiles or peer_id in seen:
+            continue
+        seen.add(peer_id)
+        result.append({
+            "other_user_id": str(peer_id), "name": profiles[peer_id].name,
+            "last_message_time": chat.get("last_message_time"),
+            "has_unseen": db.Chats.count_documents({
+                **_conversation_query(user_id, str(peer_id)),
+                "sender_id": str(peer_id), "receiver_id": user_id, "is_seen": False,
+            }) > 0,
+        })
+    return result
+
+
 @login_required
+@approved_alumni_required(api=True)
+@require_GET
+@chat_backend_errors
+def undread_dm(request):
+    db = get_chat_db()
+    if db is None:
+        return JsonResponse({"count": 0})
+    approved_ids = [str(pk) for pk in UserData.objects.filter(
+        account_is_approved=True, user__is_active=True,
+    ).exclude(user=request.user).values_list("user_id", flat=True)]
+    count = db.Chats.count_documents({
+        "receiver_id": str(request.user.pk), "sender_id": {"$in": approved_ids}, "is_seen": False,
+    })
+    return JsonResponse({"count": count})
+
+
+@login_required
+@approved_alumni_required()
+@require_GET
+@chat_backend_errors
 def chats(request):
     db = get_chat_db()
-    if db is None:
-        return render(request, "chats.html", {"chats": [], "name": request.user.username})
-    user_id = str(request.user.id)
-    metadata = db.UserMetaData.find_one({"user_id": user_id})
-    chat_list = metadata.get("chats", []) if metadata else []
+    return render(request, "chats.html", {
+        "chats": _chat_list(request, db) if db is not None else [],
+        "name": request.userdata.name,
+    })
 
-    # Sort chats by last_message_time
-    chat_list.sort(key=lambda x: x["last_message_time"], reverse=True)
 
-    for chat in chat_list:
-        other_user_id = chat.get("other_user_id")
-        try:
-            other_user = User.objects.get(id=other_user_id)
-            user_data = UserData.objects.get(user=other_user)
-            chat["name"] = user_data.name
-        except (User.DoesNotExist, UserData.DoesNotExist):
-            chat["name"] = "Deleted Account"
-
-        # Check if there are any unseen messages from other_user_id to current user
-        chat_key = get_chat_key(user_id, other_user_id)
-        unseen_count = db.Chats.count_documents({
-            "chat_key": chat_key,
-            "receiver_id": user_id,
-            "sender_id": other_user_id,
-            "is_seen": False
-        })
-        chat["has_unseen"] = (unseen_count > 0)
-
-    try:
-        u = User.objects.get(id=user_id)
-    except User.DoesNotExist:
-        return redirect("chats")
-
-    reciever = UserData.objects.get(user=u)
-    name = reciever.name
-
-    return render(request, "chats.html", {"chats": chat_list, "name": name})
-
-# 2. /chat/<user_id>
 @login_required
+@approved_alumni_required()
+@require_GET
 def chat_view(request, user_id):
-    if request.user.id == int(user_id):
-        return redirect("chats")
-    try:
-        u = User.objects.get(id=user_id)
-    except User.DoesNotExist:
-        return redirect("chats")  # Assuming you named the URL pattern 'chats'
-    reciever = UserData.objects.get(user=u)
-    return render(request, "chat.html", {"other_user_id": user_id, "rc": reciever})
+    peer = _chat_peer(request, user_id)
+    return render(request, "chat.html", {"other_user_id": str(peer.user_id), "rc": peer})
 
-# 3. /chat/<user_id>/load
+
 @login_required
+@approved_alumni_required(api=True)
+@require_GET
+@chat_backend_errors
 def load_messages(request, user_id):
+    peer = _chat_peer(request, user_id)
+    try:
+        offset = int(request.GET.get("offset", 0))
+    except (ValueError, TypeError):
+        return JsonResponse({"error": "Invalid message offset."}, status=400)
+    if not 0 <= offset <= 100000:
+        return JsonResponse({"error": "Invalid message offset."}, status=400)
     db = get_chat_db()
     if db is None:
         return JsonResponse({"messages": []})
-    offset = int(request.GET.get("offset", 0))
-    chat_key = get_chat_key(str(request.user.id), user_id)
+    query = _conversation_query(str(request.user.pk), str(peer.user_id))
+    rows = list(db.Chats.find(query).sort("datetime_sent", -1).skip(offset).limit(20))
+    # Older pages are prepended by the UI, newest first; initial page oldest first.
+    if offset == 0:
+        rows.reverse()
+    return JsonResponse({"messages": [_message_payload(row) for row in rows]})
 
-    messages = list(db.Chats.find({"chat_key": chat_key})
-                    .sort("datetime_sent", -1)
-                    .skip(offset)
-                    .limit(20))
 
-    for msg in messages:
-        msg["_id"] = str(msg["_id"])
-    
-    if offset>=20:
-        return JsonResponse({"messages": list((messages))})  # latest below
-
-    return JsonResponse({"messages": list(reversed(messages))})  # latest below
-
-# 4. /chat/<user_id>/update
 @login_required
-def update_messages(request, user_id):
-    db = get_chat_db()
-    if db is None:
-        return JsonResponse({"messages": []})
-    chat_key = get_chat_key(str(request.user.id), user_id)
-
-    unseen_messages = list(db.Chats.find({
-        "chat_key": chat_key,
-        "receiver_id": str(request.user.id),
-        "is_seen": False
-    }))
-
-    for msg in unseen_messages:
-        db.Chats.update_one(
-            {"_id": msg["_id"]},
-            {"$set": {"is_seen": True, "seen_time": now()}}
-        )
-        msg["_id"] = str(msg["_id"])
-
-    return JsonResponse({"messages": unseen_messages})
-
-# 5. /chat/<user_id>/add_message
-@login_required
+@approved_alumni_required(api=True)
 @require_POST
-def add_message(request, user_id):
+@chat_backend_errors
+def update_messages(request, user_id):
+    peer = _chat_peer(request, user_id)
     db = get_chat_db()
     if db is None:
-        return JsonResponse({"status": "unavailable"}, status=503)
-    if not User.objects.filter(id=user_id).exists():
-        return JsonResponse({"status": "error", "message": "Recipient not found"}, status=404)
-    data = json.loads(request.body)
-    text = data.get("text", "").strip()
-    if not text:
-        return JsonResponse({"status": "error", "message": "Message text cannot be empty"}, status=400)
+        return JsonResponse({"messages": []})
+    query = {**_conversation_query(str(request.user.pk), str(peer.user_id)),
+             "sender_id": str(peer.user_id), "receiver_id": str(request.user.pk), "is_seen": False}
+    rows = list(db.Chats.find(query).sort("datetime_sent", 1).limit(100))
+    if rows:
+        seen_time = now()
+        db.Chats.update_many({**query, "_id": {"$in": [row["_id"] for row in rows]}},
+                             {"$set": {"is_seen": True, "seen_time": seen_time}})
+        for row in rows:
+            row.update(is_seen=True, seen_time=seen_time)
+    return JsonResponse({"messages": [_message_payload(row) for row in rows]})
 
-    chat_key = get_chat_key(str(request.user.id), user_id)
 
+@login_required
+@approved_alumni_required(api=True)
+@require_POST
+@chat_backend_errors
+def add_message(request, user_id):
+    peer = _chat_peer(request, user_id)
+    try:
+        data = json.loads(request.body)
+    except (ValueError, UnicodeDecodeError):
+        return JsonResponse({"error": "Invalid JSON."}, status=400)
+    text = data.get("text") if isinstance(data, dict) else None
+    if not isinstance(text, str) or not 1 <= len(text.strip()) <= 4000:
+        return JsonResponse({"error": "Message must contain between 1 and 4000 characters."}, status=400)
+    db = get_chat_db()
+    if db is None:
+        return JsonResponse({"error": "Messaging is temporarily unavailable."}, status=503)
+    sender_id, recipient_id = str(request.user.pk), str(peer.user_id)
     message = {
-        "chat_key": chat_key,
-        "sender_id": str(request.user.id),
-        "receiver_id": user_id,
-        "text": text,
-        "datetime_sent": now(),
-        "is_seen": False,
-        "seen_time": None
+        "chat_key": get_chat_key(sender_id, recipient_id),
+        "sender_id": sender_id, "receiver_id": recipient_id, "text": text.strip(),
+        "datetime_sent": now(), "is_seen": False, "seen_time": None,
     }
-
     db.Chats.insert_one(message)
-
-    update_user_metadata(str(request.user.id), user_id)
-    update_user_metadata(user_id, str(request.user.id))
-
+    update_user_metadata(sender_id, recipient_id)
+    update_user_metadata(recipient_id, sender_id)
     return JsonResponse({"status": "success"})
 
 
 @login_required
+@approved_alumni_required(api=True)
+@require_GET
+@chat_backend_errors
 def chats_partial(request):
     db = get_chat_db()
-    if db is None:
-        return JsonResponse({"chats": [], "name": request.user.username})
-    user_id = str(request.user.id)
-    metadata = db.UserMetaData.find_one({"user_id": user_id})
-    chat_list = metadata.get("chats", []) if metadata else []
-
-    # Sort chats by last_message_time
-    chat_list.sort(key=lambda x: x["last_message_time"], reverse=True)
-
-    for chat in chat_list:
-        other_user_id = chat.get("other_user_id")
-        try:
-            other_user = User.objects.get(id=other_user_id)
-            user_data = UserData.objects.get(user=other_user)
-            chat["name"] = user_data.name
-        except (User.DoesNotExist, UserData.DoesNotExist):
-            chat["name"] = "Deleted Account"
-
-        # Check if there are any unseen messages from other_user_id to current user
-        chat_key = get_chat_key(user_id, other_user_id)
-        unseen_count = db.Chats.count_documents({
-            "chat_key": chat_key,
-            "receiver_id": user_id,
-            "sender_id": other_user_id,
-            "is_seen": False
-        })
-        chat["has_unseen"] = (unseen_count > 0)
-
-    try:
-        u = User.objects.get(id=user_id)
-    except User.DoesNotExist:
-        return redirect("chats")
-
-    reciever = UserData.objects.get(user=u)
-    name = reciever.name
-
-    return JsonResponse({"chats": chat_list, "name": name})
+    return JsonResponse({"chats": _chat_list(request, db) if db is not None else [], "name": request.userdata.name})
 
 
 def web_dev_team(req):

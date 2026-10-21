@@ -77,7 +77,8 @@
 <script>
   async function fetchChats() {
     try {
-      const response = await fetch('/chats/partial');
+      const response = await fetch('/chats/partial/');
+      if (!response.ok || response.redirected) throw new Error('Messaging access unavailable');
       const data = await response.json();
       const chatList = document.getElementById('chat-list');
       chatList.innerHTML = '';
@@ -88,7 +89,7 @@
           li.className = 'list-group-item chat-item';
 
           const a = document.createElement('a');
-          a.href = `/chat/${chat.other_user_id}`;
+          a.href = `/chat/${encodeURIComponent(chat.other_user_id)}/`;
           a.className = 'chat-link';
 
           const contentDiv = document.createElement('div');
