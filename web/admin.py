@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.db import transaction
 from django.http import HttpResponse
 import csv
 
@@ -44,18 +45,28 @@ class UserDataAdmin(admin.ModelAdmin):
         modeladmin.message_user(request, f"{count} alumni account(s) approved and notified.")
 
     @admin.action(description="Mark selected as eligible to vote")
+    @transaction.atomic
     def mark_eligible_to_vote(modeladmin, request, queryset):
         # queryset.update() bypasses UserData.save() (no geocoding / emails).
         skipped = queryset.filter(account_is_approved=False).count()
-        count = queryset.filter(account_is_approved=True).update(is_eligible_to_vote=True)
+        count = 0
+        for profile in queryset.select_for_update().filter(account_is_approved=True, is_eligible_to_vote=False):
+            UserData.objects.filter(pk=profile.pk).update(is_eligible_to_vote=True)
+            modeladmin.log_change(request, profile, "Election voting eligibility granted.")
+            count += 1
         modeladmin.message_user(
             request,
             f"{count} alumni marked eligible to vote. {skipped} skipped (account not approved).",
         )
 
     @admin.action(description="Revoke voting eligibility for selected")
+    @transaction.atomic
     def revoke_voting_eligibility(modeladmin, request, queryset):
-        count = queryset.update(is_eligible_to_vote=False)
+        count = 0
+        for profile in queryset.select_for_update().filter(is_eligible_to_vote=True):
+            UserData.objects.filter(pk=profile.pk).update(is_eligible_to_vote=False)
+            modeladmin.log_change(request, profile, "Election voting eligibility revoked.")
+            count += 1
         modeladmin.message_user(request, f"Voting eligibility revoked for {count} alumni.")
 
     actions = [export_as_csv, approve_selected, mark_eligible_to_vote, revoke_voting_eligibility]

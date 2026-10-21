@@ -3,7 +3,10 @@ Business rules for elections. Views and admin actions call these functions;
 each raises ElectionError with a user-facing message when a rule is violated.
 """
 import secrets
+from functools import wraps
 
+from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
 from django.utils import timezone
@@ -11,12 +14,41 @@ from django.utils import timezone
 from elections import notifications
 from elections.eligibility import can_nominate, can_vote, eligible_voters
 from elections.models import Election, Nomination, Position, Vote, VoterRecord
+from web.models import UserData
 
 Phase = Election.Phase
 
 
 class ElectionError(Exception):
     pass
+
+
+def atomic_mutation(function):
+    @wraps(function)
+    def wrapped(*args, **kwargs):
+        try:
+            with transaction.atomic():
+                return function(*args, **kwargs)
+        except ValidationError as exc:
+            raise ElectionError(" ".join(exc.messages)) from exc
+    return wrapped
+
+
+def _lock_election(election):
+    try:
+        return Election.objects.select_for_update().get(pk=election.pk)
+    except Election.DoesNotExist:
+        raise ElectionError("This election is no longer available.")
+
+
+def _lock_member(userdata):
+    if userdata is None:
+        raise ElectionError("An eligible alumni account is required.")
+    try:
+        get_user_model().objects.select_for_update().get(pk=userdata.user_id)
+        return UserData.objects.select_for_update().select_related("user").get(pk=userdata.pk)
+    except (get_user_model().DoesNotExist, UserData.DoesNotExist):
+        raise ElectionError("This alumni account is no longer available.")
 
 
 # --------------------------------------------------------------------------- #
@@ -29,7 +61,10 @@ def active_nomination(election, userdata):
     ).select_related("position").first()
 
 
+@atomic_mutation
 def submit_nomination(election, position, userdata, manifesto):
+    election = _lock_election(election)
+    userdata = _lock_member(userdata)
     if election.phase != Phase.NOMINATIONS_OPEN:
         raise ElectionError("Nominations are not open for this election.")
     if not can_nominate(userdata):
@@ -55,7 +90,12 @@ def submit_nomination(election, position, userdata, manifesto):
         raise ElectionError("You already have an active nomination in this election.")
 
 
+@atomic_mutation
 def withdraw_nomination(nomination, userdata):
+    election = _lock_election(nomination.election)
+    nomination = Nomination.objects.select_for_update().get(pk=nomination.pk)
+    nomination.election = election
+    userdata = _lock_member(userdata)
     if nomination.candidate_id != userdata.pk:
         raise ElectionError("You can only withdraw your own nomination.")
     if nomination.status not in Nomination.ACTIVE_STATUSES:
@@ -67,13 +107,19 @@ def withdraw_nomination(nomination, userdata):
     return nomination
 
 
+@atomic_mutation
 def review_nomination(nomination, approve):
     """Admin approve/reject. Only allowed before voting starts."""
+    election = _lock_election(nomination.election)
+    nomination = Nomination.objects.select_for_update().get(pk=nomination.pk)
+    nomination.election = election
     if nomination.election.phase not in (Phase.NOMINATIONS_OPEN, Phase.NOMINATIONS_CLOSED):
         raise ElectionError("Nominations can only be reviewed before voting starts.")
     if nomination.status == Nomination.Status.WITHDRAWN:
         raise ElectionError("Withdrawn nominations cannot be reviewed.")
     target = Nomination.Status.APPROVED if approve else Nomination.Status.REJECTED
+    if approve and not can_nominate(_lock_member(nomination.candidate)):
+        raise ElectionError("This candidate no longer meets election eligibility requirements.")
     if nomination.status == target:
         return nomination
     nomination.status = target
@@ -152,12 +198,15 @@ def check_can_cast(election, userdata):
         raise ElectionError("This election has no approved candidates to vote for.")
 
 
+@atomic_mutation
 def cast_ballot(election, userdata, selections):
     """
     Record a secret ballot. The VoterRecord and the anonymous Vote rows are
     written in one transaction; the unique (election, voter) constraint
     makes double voting impossible even under concurrent requests.
     """
+    election = _lock_election(election)
+    userdata = _lock_member(userdata)
     check_can_cast(election, userdata)
     resolved = resolve_selections(election, selections)
 
@@ -168,6 +217,9 @@ def cast_ballot(election, userdata, selections):
     # Shuffle so insertion order does not mirror ballot order.
     secrets.SystemRandom().shuffle(votes)
 
+    # Recheck the clock after validation, immediately before the ballot write.
+    if election.phase != Phase.VOTING_OPEN:
+        raise ElectionError("Voting has closed. Your ballot was not recorded.")
     try:
         with transaction.atomic():
             VoterRecord.objects.create(election=election, voter=userdata)
@@ -230,7 +282,9 @@ def turnout(election):
     return {"voted": voted, "eligible": eligible, "percent": percent}
 
 
+@atomic_mutation
 def publish_results(election):
+    election = _lock_election(election)
     if election.phase != Phase.CLOSED:
         raise ElectionError("Results can only be published after voting closes.")
     if election.results_published:
@@ -247,23 +301,20 @@ def publish_results(election):
 # Announcements
 # --------------------------------------------------------------------------- #
 
+@atomic_mutation
 def announce_voting_open(election):
-    """Email every eligible voter that voting is open. Can only be sent once."""
+    """Queue one announcement per canonical recipient; safe to resume sending."""
+    election = _lock_election(election)
     if election.phase != Phase.VOTING_OPEN:
         raise ElectionError("The announcement can only be sent while voting is open.")
     if election.voting_open_email_sent_at:
         raise ElectionError("The voting-open announcement was already sent.")
     recipients = sorted(
-        {e.strip() for e in eligible_voters().values_list("email_id", flat=True) if e and e.strip()}
+        {e.strip().lower() for e in eligible_voters().values_list("user__email", flat=True) if e and e.strip()}
     )
     if not recipients:
         raise ElectionError("No eligible voters with a valid email address were found.")
-    try:
-        sent = notifications.email_voting_open(election, recipients)
-    except Exception as exc:
-        raise ElectionError(f"Email delivery failed: {exc}")
-    if sent == 0:
-        raise ElectionError("No announcement emails could be delivered. Please verify SMTP settings.")
+    queued = notifications.email_voting_open(election, recipients)
     election.voting_open_email_sent_at = timezone.now()
     election.save(update_fields=["voting_open_email_sent_at"])
-    return len(recipients), sent
+    return len(recipients), queued

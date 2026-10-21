@@ -1,8 +1,10 @@
 import uuid
 
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Q
+from django.db.models.signals import pre_delete
+from django.dispatch import receiver
 from django.utils import timezone
 
 
@@ -44,6 +46,11 @@ class Election(models.Model):
 
     class Meta:
         ordering = ["-voting_start", "-id"]
+        constraints = [models.CheckConstraint(
+            condition=Q(nomination_start__lt=models.F("nomination_end"))
+            & Q(nomination_end__lt=models.F("voting_start"))
+            & Q(voting_start__lt=models.F("voting_end")), name="election_timeline_order",
+        )]
 
     def __str__(self):
         return self.title
@@ -59,15 +66,34 @@ class Election(models.Model):
         if not self.voting_start < self.voting_end:
             raise ValidationError({"voting_end": "Voting end must be after voting start."})
 
-        if self.pk and self.votes.exists():
-            original = Election.objects.filter(pk=self.pk).first()
-            if original:
-                if not self.is_published:
-                    raise ValidationError({"is_published": "Cannot un-publish an election that already has cast votes."})
-                if self.nomination_start != original.nomination_start or self.nomination_end != original.nomination_end:
-                    raise ValidationError("Cannot modify nomination dates after votes have been cast.")
-                if self.voting_start != original.voting_start:
-                    raise ValidationError({"voting_start": "Cannot modify voting start date after votes have been cast."})
+        original = Election.objects.filter(pk=self.pk).first() if self.pk else None
+        if self.is_published and (not original or not original.is_published) and timezone.now() >= self.voting_start:
+            raise ValidationError({"voting_start": "Choose a future voting start before publishing the election."})
+
+        if self.pk:
+            if original and original.is_frozen:
+                fields = ("nomination_start", "nomination_end", "voting_start", "voting_end", "is_published")
+                if any(getattr(self, f) != getattr(original, f) for f in fields):
+                    raise ValidationError("The election timeline and publication are locked once voting starts.")
+                if original.results_published and (
+                    not self.results_published or self.eligible_voter_count != original.eligible_voter_count
+                ):
+                    raise ValidationError("Published results and their turnout snapshot cannot be changed.")
+        if self.results_published and self.phase != self.Phase.CLOSED:
+            raise ValidationError("Results can only be published after voting closes.")
+
+    @property
+    def is_frozen(self):
+        return bool(self.results_published or (
+            self.is_published and self.voting_start and timezone.now() >= self.voting_start
+        ) or (self.pk and self.votes.exists()))
+
+    def save(self, *args, **kwargs):
+        with transaction.atomic():
+            if self.pk:
+                Election.objects.select_for_update().filter(pk=self.pk).first()
+            self.full_clean()
+            return super().save(*args, **kwargs)
 
     def phase_at(self, when):
         """Phase of this election at the given moment (pure; used for testing)."""
@@ -118,29 +144,22 @@ class Position(models.Model):
         if self.title:
             self.title = self.title.strip()
         if self.election_id:
-            election = self.election
-            voting_started = (
-                election.phase in (Election.Phase.VOTING_OPEN, Election.Phase.CLOSED)
-                or election.votes.exists()
-            )
+            election = Election.objects.get(pk=self.election_id)
+            original = Position.objects.filter(pk=self.pk).first() if self.pk else None
+            if original and original.election_id != self.election_id:
+                raise ValidationError("Positions cannot be moved to another election.")
+            voting_started = election.is_frozen
             if voting_started:
                 if self.pk is None:
                     raise ValidationError("Cannot add new positions once voting has started.")
-                original = Position.objects.filter(pk=self.pk).first()
-                if original and original.title != self.title:
-                    raise ValidationError({"title": "Cannot rename positions once voting has started."})
+                if original and any(getattr(original, f) != getattr(self, f) for f in ("title", "description", "order")):
+                    raise ValidationError("Cannot change positions once voting has started.")
 
-    def delete(self, *args, **kwargs):
-        if self.election_id:
-            election = self.election
-            voting_started = (
-                election.phase in (Election.Phase.VOTING_OPEN, Election.Phase.CLOSED)
-                or election.votes.exists()
-            )
-            if voting_started:
-                raise ValidationError("Cannot delete positions once voting has started.")
-        super().delete(*args, **kwargs)
-
+    def save(self, *args, **kwargs):
+        with transaction.atomic():
+            Election.objects.select_for_update().get(pk=self.election_id)
+            self.full_clean()
+            return super().save(*args, **kwargs)
 
 class Nomination(models.Model):
     class Status(models.TextChoices):
@@ -185,25 +204,12 @@ class Nomination(models.Model):
         if self.position_id and self.election_id and self.position.election_id != self.election_id:
             raise ValidationError({"position": "Position does not belong to this election."})
 
-        if self.pk:
-            orig = Nomination.objects.filter(pk=self.pk).values("status").first()
-            if orig and orig["status"] != self.status:
-                voting_started = (
-                    self.election.phase in (Election.Phase.VOTING_OPEN, Election.Phase.CLOSED)
-                    or self.election.votes.exists()
-                )
-                if voting_started:
-                    raise ValidationError("Nominations cannot be approved or rejected after voting has started.")
-
-    def delete(self, *args, **kwargs):
-        if self.election_id:
-            voting_started = (
-                self.election.phase in (Election.Phase.VOTING_OPEN, Election.Phase.CLOSED)
-                or self.election.votes.exists()
-            )
-            if voting_started:
-                raise ValidationError("Cannot delete nominations once voting has started.")
-        super().delete(*args, **kwargs)
+        orig = Nomination.objects.filter(pk=self.pk).first() if self.pk else None
+        if orig and any(getattr(orig, f) != getattr(self, f) for f in ("election_id", "position_id", "candidate_id")):
+            raise ValidationError("The candidate, election and position of a nomination cannot be reassigned.")
+        if self.election_id and Election.objects.get(pk=self.election_id).is_frozen:
+            if not orig or any(getattr(orig, f) != getattr(self, f) for f in ("status", "manifesto")):
+                raise ValidationError("Nominations cannot be changed after voting has started.")
 
     def save(self, *args, **kwargs):
         # Imported lazily to avoid a circular import (notifications -> models).
@@ -221,13 +227,14 @@ class Nomination(models.Model):
             if kwargs.get("update_fields") is not None:
                 kwargs["update_fields"] = set(kwargs["update_fields"]) | {"reviewed_at"}
 
-        super().save(*args, **kwargs)
-
-        # Same pattern as the rest of the project: emails are sent from save().
-        if is_new:
-            notifications.notify_staff_new_nomination(self)
-        elif status_changed and self.status in (self.Status.APPROVED, self.Status.REJECTED):
-            notifications.notify_candidate_status(self)
+        with transaction.atomic():
+            Election.objects.select_for_update().get(pk=self.election_id)
+            self.full_clean()
+            super().save(*args, **kwargs)
+            if is_new:
+                notifications.notify_staff_new_nomination(self)
+            elif status_changed and self.status in (self.Status.APPROVED, self.Status.REJECTED):
+                notifications.notify_candidate_status(self)
 
 
 class VoterRecord(models.Model):
@@ -235,7 +242,7 @@ class VoterRecord(models.Model):
 
     election = models.ForeignKey(Election, on_delete=models.CASCADE, related_name="voter_records")
     voter = models.ForeignKey(
-        "web.UserData", on_delete=models.CASCADE, related_name="voter_records"
+        "web.UserData", on_delete=models.PROTECT, related_name="voter_records"
     )
 
     class Meta:
@@ -252,7 +259,8 @@ class Vote(models.Model):
     One anonymous choice on a secret ballot.
 
     Deliberately has NO voter reference, NO timestamp, and a random UUID
-    primary key, so a vote cannot be linked back to a VoterRecord.
+    primary key. There is no application-level voter/choice link. Database
+    operators and transaction logs remain trusted; this is not cryptographic anonymity.
     PROTECT stops deleting elections/positions/candidates that hold votes.
     """
 
@@ -263,3 +271,36 @@ class Vote(models.Model):
 
     def __str__(self):
         return "Anonymous vote"
+
+
+@receiver(pre_delete, sender=Election)
+@receiver(pre_delete, sender=Position)
+@receiver(pre_delete, sender=Nomination)
+def protect_started_election(sender, instance, using, **kwargs):
+    # Signals also cover admin bulk deletion and cascades, which bypass delete().
+    pk = instance.pk if sender is Election else instance.election_id
+    election = Election.objects.using(using).select_for_update().filter(pk=pk).first()
+    if election and election.is_frozen:
+        raise ValidationError("Cannot delete election records once voting has started.")
+
+
+class ElectionMail(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Queued"
+        SENDING = "sending", "Delivery uncertain — review before retrying"
+        SENT = "sent", "Accepted by mail service"
+        EXPIRED = "expired", "Voting closed before announcement was sent"
+
+    election = models.ForeignKey(Election, on_delete=models.PROTECT, related_name="mail")
+    event_key = models.CharField(max_length=64, unique=True)
+    recipient = models.EmailField()
+    subject = models.CharField(max_length=255)
+    body = models.TextField()
+    priority = models.PositiveSmallIntegerField(default=20)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    created_at = models.DateTimeField(auto_now_add=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["priority", "created_at", "pk"]
+        indexes = [models.Index(fields=["status", "priority", "created_at"])]
