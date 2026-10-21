@@ -2,7 +2,8 @@
 
 {% block content %}
 <div class="container mt-5">
-  <h2>Alumni Map</h2>
+  <h2>{% if messaging_only %}Start a conversation{% else %}Alumni Map{% endif %}</h2>
+  {% if messaging_only %}<p>Choose an active, approved alumnus below to open a private conversation.</p>{% endif %}
 
   <!-- Search Bar -->
   <div class="mb-3">
@@ -47,6 +48,7 @@
 
   let lastSearchQuery = '';
   const currentUserId = {{ request.user.pk|default:"null" }};
+  const messagingOnly = new URLSearchParams(window.location.search).get('messaging') === '1';
 
   function fetchAlumni(triggeredBy = 'map') {
     const bounds = map.getBounds();
@@ -56,7 +58,7 @@
     if (search === lastSearchQuery && triggeredBy === 'search') return;
     if (triggeredBy === 'search') lastSearchQuery = search;
 
-    const url = `?south=${bounds.getSouth()}&west=${bounds.getWest()}&north=${bounds.getNorth()}&east=${bounds.getEast()}&search=${encodeURIComponent(search)}`;
+    const url = `?south=${bounds.getSouth()}&west=${bounds.getWest()}&north=${bounds.getNorth()}&east=${bounds.getEast()}&search=${encodeURIComponent(search)}&messaging=${messagingOnly ? '1' : '0'}`;
 
     fetch(url, {
       headers: { "X-Requested-With": "XMLHttpRequest" }
@@ -92,14 +94,24 @@
           row.appendChild(cell);
         }
         const contactCell = document.createElement('td');
-        const contact = document.createElement(isCurrentUser ? 'span' : 'a');
-        contact.className = isCurrentUser ? 'badge bg-secondary' : 'btn btn-sm btn-outline-primary';
-        contact.textContent = isCurrentUser ? 'This is you' : 'Contact';
-        if (!isCurrentUser) contact.href = `/contact-alumni/${encodeURIComponent(alumni.id)}/`;
+        const canMessage = !isCurrentUser && alumni.can_message !== false;
+        const contact = document.createElement(canMessage ? 'a' : 'span');
+        contact.className = canMessage ? 'btn btn-sm btn-outline-primary' : 'badge bg-secondary';
+        contact.textContent = isCurrentUser ? 'This is you' : canMessage ? 'Contact' : 'Messaging unavailable';
+        if (canMessage) contact.href = `/contact-alumni/${encodeURIComponent(alumni.id)}/`;
         contactCell.appendChild(contact);
         row.appendChild(contactCell);
         tbody.appendChild(row);
       });
+    }).catch(() => {
+      const tbody = document.querySelector('#alumniTable tbody');
+      tbody.replaceChildren();
+      const row = document.createElement('tr');
+      const cell = document.createElement('td');
+      cell.colSpan = 5;
+      cell.textContent = 'Unable to load alumni. Please reload this page.';
+      row.appendChild(cell);
+      tbody.appendChild(row);
     });
   }
 

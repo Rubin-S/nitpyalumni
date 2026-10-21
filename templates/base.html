@@ -73,7 +73,7 @@
                   <a class="nav-link" href="/all-jobs">Jobs</a>
                 </li>
                 <li class="nav-item">
-                  <a class="nav-link" href="/all-talks">Talks</a>
+                  <a class="nav-link" href="{% url 'all_talks' %}">Talks</a>
                 </li>
                 <li class="nav-item">
                   <a class="nav-link" href="/elections/">Elections</a>
@@ -131,10 +131,9 @@
                 <div class="col-md-4 mb-4">
                     <h5>Navigation</h5>
                     <ul class="list-unstyled">
-                        <li><a href="#" class="text-decoration-none text-dark">About Us</a></li>
-                        <li><a href="#" class="text-decoration-none text-dark">Courses</a></li>
-                        <li><a href="#" class="text-decoration-none text-dark">Community</a></li>
-                        <li><a href="#" class="text-decoration-none text-dark">Contact</a></li>
+                        <li><a href="/vision_and_mission" class="text-decoration-none text-dark">About Us</a></li>
+                        <li><a href="/alumni-map/" class="text-decoration-none text-dark">Community</a></li>
+                        <li><a href="mailto:alumni@nitpy.ac.in" class="text-decoration-none text-dark">Contact</a></li>
                         <li><a href="/web-team" class="text-decoration-none text-dark">Web Development Team</a></li>
                         <li class="mt-3">
                             <strong>Dr. Naveen Raj R</strong><br>
@@ -150,10 +149,10 @@
                 </div>
 
                 <div class="col-md-4 mb-4">
-                    <h5>Helps</h5>
+                    <h5>Account Support</h5>
                     <ul class="list-unstyled">
-                        <li><a href="#" class="text-decoration-none text-dark">Terms & Conditions</a></li>
-                        <li><a href="#" class="text-decoration-none text-dark">Privacy Policy</a></li>
+                        <li><a href="/password-reset/" class="text-decoration-none text-dark">Reset Password</a></li>
+                        <li><a href="mailto:alumni@nitpy.ac.in" class="text-decoration-none text-dark">Privacy Enquiries</a></li>
                     </ul>
                 </div>
 
@@ -172,6 +171,10 @@
         async function updateUnreadDMCount() {
           try {
             const response = await fetch('/chats/undreaddm/');
+            if (response.redirected || response.status === 401 || response.status === 403) {
+              stopDMPolling();
+              return;
+            }
             if (!response.ok) throw new Error('Network response was not ok');
       
             const data = await response.json();

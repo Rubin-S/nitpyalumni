@@ -294,10 +294,13 @@ def alumni_map(request):
     east = request.GET.get('east')
     search_query = request.GET.get('search', '').strip()
 
-    alumni_queryset = UserData.objects.filter(account_is_approved=True)
+    messaging_only = request.GET.get("messaging") == "1"
+    alumni_queryset = UserData.objects.filter(account_is_approved=True).select_related("user")
+    if messaging_only:
+        alumni_queryset = alumni_queryset.filter(user__is_active=True).exclude(user=request.user)
 
     # Filter by bounding box if provided
-    if all([south, west, north, east]):
+    if not messaging_only and all([south, west, north, east]):
         try:
             s_val = Decimal(south)
             w_val = Decimal(west)
@@ -341,14 +344,15 @@ def alumni_map(request):
             'department': a.department,
             'job_title': a.job_title,
             'lat': a.lat,
-            'lng': a.lng
+            'lng': a.lng,
+            'can_message': a.user.is_active and a.user_id != request.user.pk
         } for a in alumni_queryset]
 
         return JsonResponse({'alumni': alumni_data})
 
     # Regular HTML page render
     return render(request, 'alumni_map.html', {
-        'alumni_list': alumni_queryset
+        'alumni_list': alumni_queryset, 'messaging_only': messaging_only,
     })
 
 
@@ -927,14 +931,12 @@ def manage_website_view(request):
         return redirect('/')
     website = Website.objects.filter(user=user_data).first()
     cf_manager = get_cf_manager()
+    if cf_manager is None:
+        return render(request, "manage_website.html", {
+            "dns_unavailable": True, "website": website, "user": user_data,
+        })
 
     if request.method == "POST":
-        if cf_manager is None:
-            return render(request, "manage_website.html", {
-                "error": "Website DNS is not configured on this deployment.",
-                "website": website,
-                "user": user_data,
-            })
         action = request.POST.get("action")
 
         # Prevent tampering: only work on the logged-in user's website.
