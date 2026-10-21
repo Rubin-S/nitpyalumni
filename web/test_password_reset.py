@@ -125,6 +125,22 @@ class PasswordRecoveryTests(TestCase):
         response = strict.get(self.link())
         self.assertEqual(strict.post(response.url, {"new_password1": self.password, "new_password2": self.password}).status_code, 403)
 
+    def test_password_submission_with_csrf_token_and_site_origin_succeeds(self):
+        strict = Client(enforce_csrf_checks=True)
+        user = User.objects.create_user("csrfok", "csrfok@example.com", None, is_active=False)
+        self.request_link(user.email)
+        form_url = strict.get(self.link()).url
+        strict.get(form_url)
+        token = strict.cookies["csrftoken"].value
+        data = {"new_password1": self.password, "new_password2": self.password, "csrfmiddlewaretoken": token}
+        # A null Origin (what no-referrer caused in Chrome) is rejected...
+        self.assertEqual(strict.post(form_url, data, HTTP_ORIGIN="null").status_code, 403)
+        # ...while the site's real Origin, sent under same-origin, is accepted.
+        response = strict.post(form_url, data, HTTP_ORIGIN="https://www.nitpyalumni.com")
+        self.assertRedirects(response, "/password-reset/complete/")
+        user.refresh_from_db()
+        self.assertTrue(user.check_password(self.password))
+
     def test_separate_sessions_cannot_redeem_same_link_twice(self):
         user = User.objects.create_user("twice", "twice@example.com", None)
         self.request_link(user.email)
@@ -156,7 +172,8 @@ class PasswordRecoveryTests(TestCase):
         user = User.objects.create_user("headers", "headers@example.com", None)
         self.request_link(user.email)
         response = self.client.get(self.link())
-        self.assertEqual(response.headers["Referrer-Policy"], "no-referrer")
+        self.assertEqual(response.headers["Referrer-Policy"], "same-origin")
+        self.assertEqual(self.client.get(response.url).headers["Referrer-Policy"], "same-origin")
         self.assertIn("no-store", response.headers["Cache-Control"])
 
     @override_settings(EMAIL_HOST_USER="resend", DEFAULT_FROM_EMAIL="accounts@nitpyalumni.com")

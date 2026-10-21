@@ -103,7 +103,11 @@ class AccountPasswordResetView(PasswordResetView):
 class AccountPasswordResetConfirmView(PasswordResetConfirmView):
     def dispatch(self, *args, **kwargs):
         response = super().dispatch(*args, **kwargs)
-        response["Referrer-Policy"] = "no-referrer"
+        # same-origin keeps the reset token out of cross-site Referer headers,
+        # while letting browsers send the real Origin on this page's own form
+        # POST. no-referrer made Chrome send "Origin: null", which Django's
+        # CSRF check rejects, so new passwords could not be saved.
+        response["Referrer-Policy"] = "same-origin"
         return response
 
     def form_valid(self, form):
