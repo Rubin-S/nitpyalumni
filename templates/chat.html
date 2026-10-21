@@ -100,6 +100,9 @@
 
   let offset = 0;
   let allLoaded = false;
+  let loadingOlder = false;
+  let sending = false;
+  const displayedMessageIds = new Set();
   const chatBox = document.getElementById("chat-box");
 
   function formatDateLabel(dateStr) {
@@ -127,19 +130,25 @@
   }
 
   function appendMessage(msg, isSender) {
+    if (msg._id && displayedMessageIds.has(msg._id)) return false;
+    if (msg._id) displayedMessageIds.add(msg._id);
     showDatePopup(msg.datetime_sent);
     const bubble = messageBubble(msg, isSender);
     chatBox.appendChild(bubble);
     chatBox.scrollTop = chatBox.scrollHeight;
+    return true;
   }
 
   function prependMessage(msg) {
+    if (msg._id && displayedMessageIds.has(msg._id)) return false;
+    if (msg._id) displayedMessageIds.add(msg._id);
     const isSender = msg.sender_id === userId;
     const scrollOffset = chatBox.scrollHeight - chatBox.scrollTop;
     const bubble = messageBubble(msg, isSender);
     showDatePopup(msg.datetime_sent);
     chatBox.insertBefore(bubble, chatBox.firstChild);
     chatBox.scrollTop = chatBox.scrollHeight - scrollOffset;
+    return true;
   }
 
   function messageBubble(msg, isSender) {
@@ -175,13 +184,14 @@
           allLoaded = true;
         } else {
           data.messages.forEach(msg => appendMessage(msg, msg.sender_id === userId));
-          offset += data.messages.length;
+          offset = displayedMessageIds.size;
         }
       }).catch(showChatError);
   }
 
   function loadOlderMessages() {
-    if (allLoaded) return;
+    if (allLoaded || loadingOlder) return;
+    loadingOlder = true;
     const prevHeight = chatBox.scrollHeight;
     chatRequest(`/chat/${otherUserId}/load?offset=${offset}`)
       .then(data => {
@@ -190,9 +200,9 @@
           return;
         }
         data.messages.forEach(prependMessage);
-        offset += data.messages.length;
+        offset = displayedMessageIds.size;
         chatBox.scrollTop = chatBox.scrollHeight - prevHeight;
-      }).catch(showChatError);
+      }).catch(showChatError).finally(() => {loadingOlder = false;});
   }
 
   function pollNewMessages() {
@@ -203,13 +213,17 @@
         data.messages.forEach(msg => {
           appendMessage(msg, false);
         });
+        offset = displayedMessageIds.size;
       }).catch(showChatError);
   }
 
   function sendMessage() {
     const input = document.getElementById("chat-input");
     const text = input.value.trim();
-    if (!text) return;
+    if (!text || sending) return;
+    sending = true;
+    const sendButton = document.getElementById('send-btn');
+    sendButton.disabled = true;
 
     chatRequest(`/chat/${otherUserId}/add_message`, {
       method: 'POST',
@@ -219,11 +233,16 @@
       },
       body: JSON.stringify({ text })
     })
-    .then(() => {
-      appendMessage({ text, datetime_sent: new Date() }, true);
-      input.value = "";
+    .then(data => {
+      appendMessage(data.message || {text, datetime_sent: new Date()}, true);
+      offset = displayedMessageIds.size;
+      // Keep any new draft the sender typed while the request was pending.
+      if (input.value.trim() === text) input.value = "";
       document.getElementById('chat-error').textContent = '';
-    }).catch(showChatError);
+    }).catch(showChatError).finally(() => {
+      sending = false;
+      sendButton.disabled = false;
+    });
   }
 
   document.getElementById("send-btn").addEventListener("click", sendMessage);

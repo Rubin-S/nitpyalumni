@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}Alumni access | NITPY Alumni{% endblock %}
+{% block content %}
+<div class="card p-4">
+  <h1 class="h3">Alumni access</h1>
+  {% if has_alumni_profile %}
+    <p>Your alumni profile is pending administrator approval. DMs are available to active, approved alumni accounts.</p>
+    <a href="{% url 'profile' %}" class="btn btn-primary">View your profile</a>
+  {% else %}
+    <h2 class="h4">Complete your alumni profile</h2>
+    <p>You are signed in, but your account has no alumni profile. Submit your details for administrator approval before using DMs.</p>
+    <a href="{% url 'profile' %}" class="btn btn-primary">Complete your alumni profile</a>
+  {% endif %}
+</div>
+{% endblock %}

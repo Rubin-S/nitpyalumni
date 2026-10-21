@@ -55,3 +55,21 @@ deployed before any environment variable is added.
 
 If the current key is known to be leaked, skip the fallback: everyone is signed
 out once, which is the safe trade-off.
+
+## Profile completion and PostgreSQL messaging
+
+Authenticated accounts without an alumni profile can now complete `/profile/`.
+The profile remains linked to the existing account and roll number and starts
+pending administrator approval. Password recovery does not grant approval or
+staff/voting privileges. Existing profiles and approval flags are preserved.
+
+`CHAT_BACKEND=postgres` is the default for new DMs. Migration
+`0010_direct_message_storage` adds only a message table and indexes; it does not
+modify accounts, profiles, or the original MongoDB database. Old MongoDB history
+has not been imported and remains unavailable until its owner/access is recovered.
+The legacy Mongo code remains behind explicit `CHAT_BACKEND=mongo` for controlled
+recovery; switching storage back does not merge the two histories.
+
+On a code rollback, retain the message table. Do not reverse migration 0010 after
+new messages have been stored, because reversal drops that table. Normal builds
+apply the additive migration before starting the new application.

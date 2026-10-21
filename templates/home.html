@@ -2,6 +2,13 @@
 {% block title %}Home | NITPY Alumni{% endblock %}
 
 {% block content %}
+{% if missing_alumni_profile %}
+<div class="alert alert-info">
+    <h2 class="h5">Complete your alumni profile</h2>
+    <p>Your login account is ready. Submit your alumni details for administrator approval to access alumni services.</p>
+    <a href="{% url 'profile' %}" class="btn btn-primary">Complete your alumni profile</a>
+</div>
+{% endif %}
 <style>
     /* Typewriter animation */
     .typewriter h1 {

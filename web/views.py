@@ -12,7 +12,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator, validate_email
-from django.db import transaction
+from django.db import DatabaseError, transaction
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.contrib.auth.decorators import login_required
@@ -27,10 +27,12 @@ from django.utils.timezone import now
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 from web.access import approved_alumni_required
+from web.forms import AlumniProfileForm
+from web import messaging
 from web import throttle
 
 from web.models import (
-    UserData, DonateBook, JobPosting, Talk, Website,
+    UserData, DirectMessage, DonateBook, JobPosting, Talk, Website,
     GuestHouseBookingRequest, CardApplicationRequest, GetTranscriptRequest
 )
 from web.helper.cf import CloudflareDNSManager
@@ -92,7 +94,7 @@ def index(request):
         if user is None:
             if request.user.is_staff:
                 return redirect("/admin/")
-            return render(request, "home.html")
+            return render(request, "home.html", {"missing_alumni_profile": True})
         is_approved = user.account_is_approved
         return render(request, "student_dash.html", context={"user": user, "is_approved": is_approved})
     return render(request, "home.html")
@@ -567,105 +569,58 @@ def donate_book_view(request):
 
     return render(request, 'donate_book.html')
 
-# Profile page
+# Profile completion and edits share validation and preserve account ownership.
 @login_required
+@require_http_methods(["GET", "POST"])
 def profile_view(request):
-    user_data = UserData.objects.filter(user=request.user).first()
-    if not user_data:
-        if request.user.is_staff:
+    with transaction.atomic():
+        # Lock the parent account even when its profile does not exist yet.
+        # Concurrent completion requests must not create or overwrite two profiles.
+        account = User.objects.select_for_update().get(pk=request.user.pk)
+        profile = UserData.objects.select_for_update().filter(user=account).first()
+        is_new = profile is None
+        if is_new and account.is_staff:
             return redirect('/admin/')
-        messages.error(request, "No alumni profile found for your account.")
-        return redirect('/')
-
-    is_approved = user_data.account_is_approved
-    if request.method == 'POST':
-        post = {key: (request.POST.get(key) or "").strip() for key in (
-            "name", "phone_number", "email_id", "country", "state", "city", "degree",
-            "department", "present_address", "job_title", "job_address",
-            "higher_study_uni_name", "higher_study_uni_address", "higher_study_field",
-        )}
-        try:
-            check_profile_lengths(post)
-            if post["email_id"]:
-                validate_email(post["email_id"])
-            batch = clean_batch(request.POST.get('batch', user_data.batch))
-            linked_in = clean_social_url(request.POST.get('linkedin'), "LinkedIn")
-            facebook = clean_social_url(request.POST.get('facebook'), "Facebook")
-            instagram = clean_social_url(request.POST.get('instagram'), "Instagram")
-        except ValidationError as exc:
-            messages.error(request, " ".join(exc.messages))
-            return redirect('profile')
-
-        # Update fields from form input
-        user_data.name = post["name"]
-        user_data.phone_number = post["phone_number"]
-        user_data.email_id = post["email_id"]
-        user_data.country = post["country"]
-        user_data.state = post["state"]
-        user_data.city = post["city"]
-        user_data.batch = batch
-        user_data.degree = post["degree"] or user_data.degree
-        user_data.department = post["department"] or user_data.department
-        user_data.present_address = post["present_address"]
-        user_data.linked_in = linked_in
-        user_data.facebook = facebook
-        user_data.instagram = instagram
-
-        current_status = request.POST.get('current_status', '')
-        user_data.in_job = (current_status == 'job')
-
-        # Optional fields based on status
-        if current_status == 'job':
-            user_data.job_title = request.POST.get('job_title', '').strip()
-            user_data.job_address = request.POST.get('job_address', '').strip()
-            user_data.higher_study_uni_name = ''
-            user_data.higher_study_uni_address = ''
-            user_data.higher_study_field = ''
-        elif current_status == 'study':
-            user_data.higher_study_uni_name = request.POST.get('higher_study_uni_name', '').strip()
-            user_data.higher_study_uni_address = request.POST.get('higher_study_uni_address', '').strip()
-            user_data.higher_study_field = request.POST.get('higher_study_field', '').strip()
-            user_data.job_title = ''
-            user_data.job_address = ''
-        else:
-            user_data.job_title = ''
-            user_data.job_address = ''
-            user_data.higher_study_uni_name = ''
-            user_data.higher_study_uni_address = ''
-            user_data.higher_study_field = ''
-
-        user_data.save()
-        messages.success(request, "Your profile has been updated successfully.")
-        return redirect('profile')
-
-    if user_data.in_job:
-        current_status = 'job'
-    elif user_data.higher_study_uni_name or user_data.higher_study_field:
-        current_status = 'study'
-    else:
-        current_status = 'none'
-
-    return render(request, 'profile.html', {
-        'user_data': user_data,
-        'is_approved': is_approved,
-        'current_status': current_status
+        if request.method == "POST" and not is_new and request.POST.get("profile_mode") == "create":
+            messages.info(request, "Your alumni profile has already been submitted.")
+            return redirect("profile")
+        if is_new:
+            profile = UserData(
+                user=account, roll_no=account.username, email_id=account.email,
+                name=account.get_full_name(), account_is_approved=False,
+                is_eligible_to_vote=False,
+            )
+        form = AlumniProfileForm(request.POST if request.method == "POST" else None, instance=profile)
+        if request.method == "POST":
+            if is_new and request.POST.get("profile_mode") != "create":
+                form.is_valid()
+                form.add_error(None, "Please reload this page before completing your profile.")
+            elif form.is_valid():
+                form.save()
+                messages.success(request, (
+                    "Your alumni profile has been submitted and is pending administrator approval."
+                    if is_new else "Your profile has been updated successfully."
+                ))
+                return redirect("profile")
+    return render(request, "profile.html", {
+        "form": form, "user_data": profile, "is_new_profile": is_new,
+        "is_approved": profile.account_is_approved,
     })
 
 
-
-
-
-# Messaging: SQL owns identity/approval; MongoDB stores message content only.
+# New messages use PostgreSQL. Legacy MongoDB is opt-in for history recovery.
 _mongo_db = None
 
 
 def get_chat_db():
+    if settings.CHAT_BACKEND == "postgres":
+        return None
     global _mongo_db
     if _mongo_db is not None:
         return _mongo_db
     mongo_uri = os.environ.get("MONGODB_URI", "")
     if not mongo_uri:
-        return None
+        raise PyMongoError("Legacy messaging configuration is unavailable")
     _mongo_db = MongoClient(mongo_uri, serverSelectionTimeoutMS=3000)["ChatDB"]
     return _mongo_db
 
@@ -675,7 +630,7 @@ def chat_backend_errors(view):
     def wrapper(*args, **kwargs):
         try:
             return view(*args, **kwargs)
-        except PyMongoError:
+        except (PyMongoError, DatabaseError):
             # Database exceptions may contain credentials/URIs; never expose them.
             logger.warning("Messaging database unavailable")
             return JsonResponse({"error": "Messaging is temporarily unavailable."}, status=503)
@@ -734,6 +689,8 @@ def update_user_metadata(user_id, other_user_id):
 
 
 def _chat_list(request, db):
+    if db is None:
+        return messaging.inbox(request.user)
     user_id = str(request.user.pk)
     metadata = db.UserMetaData.find_one({"user_id": user_id}) or {}
     chats = metadata.get("chats", [])
@@ -773,7 +730,11 @@ def _chat_list(request, db):
 def undread_dm(request):
     db = get_chat_db()
     if db is None:
-        return JsonResponse({"count": 0})
+        count = DirectMessage.objects.filter(
+            receiver=request.user, is_seen=False, sender__is_active=True,
+            sender__userdata__account_is_approved=True,
+        ).exclude(sender=request.user).count()
+        return JsonResponse({"count": count})
     approved_ids = [str(pk) for pk in UserData.objects.filter(
         account_is_approved=True, user__is_active=True,
     ).exclude(user=request.user).values_list("user_id", flat=True)]
@@ -790,7 +751,7 @@ def undread_dm(request):
 def chats(request):
     db = get_chat_db()
     return render(request, "chats.html", {
-        "chats": _chat_list(request, db) if db is not None else [],
+        "chats": _chat_list(request, db),
         "name": request.userdata.name,
     })
 
@@ -817,7 +778,11 @@ def load_messages(request, user_id):
         return JsonResponse({"error": "Invalid message offset."}, status=400)
     db = get_chat_db()
     if db is None:
-        return JsonResponse({"messages": []})
+        rows = list(messaging.conversation(request.user.pk, peer.user_id)
+                    .order_by("-datetime_sent", "-pk")[offset:offset + 20])
+        if offset == 0:
+            rows.reverse()
+        return JsonResponse({"messages": [messaging.payload(row) for row in rows]})
     query = _conversation_query(str(request.user.pk), str(peer.user_id))
     rows = list(db.Chats.find(query).sort("datetime_sent", -1).skip(offset).limit(20))
     # Older pages are prepended by the UI, newest first; initial page oldest first.
@@ -834,7 +799,18 @@ def update_messages(request, user_id):
     peer = _chat_peer(request, user_id)
     db = get_chat_db()
     if db is None:
-        return JsonResponse({"messages": []})
+        with transaction.atomic():
+            rows = list(DirectMessage.objects.select_for_update().filter(
+                sender=peer.user, receiver=request.user, is_seen=False,
+            ).order_by("datetime_sent", "pk")[:100])
+            if rows:
+                seen_time = now()
+                DirectMessage.objects.filter(pk__in=[row.pk for row in rows]).update(
+                    is_seen=True, seen_time=seen_time,
+                )
+                for row in rows:
+                    row.is_seen, row.seen_time = True, seen_time
+        return JsonResponse({"messages": [messaging.payload(row) for row in rows]})
     query = {**_conversation_query(str(request.user.pk), str(peer.user_id)),
              "sender_id": str(peer.user_id), "receiver_id": str(request.user.pk), "is_seen": False}
     rows = list(db.Chats.find(query).sort("datetime_sent", 1).limit(100))
@@ -862,17 +838,18 @@ def add_message(request, user_id):
         return JsonResponse({"error": "Message must contain between 1 and 4000 characters."}, status=400)
     db = get_chat_db()
     if db is None:
-        return JsonResponse({"error": "Messaging is temporarily unavailable."}, status=503)
+        row = DirectMessage.objects.create(sender=request.user, receiver=peer.user, text=text.strip())
+        return JsonResponse({"status": "success", "message": messaging.payload(row)})
     sender_id, recipient_id = str(request.user.pk), str(peer.user_id)
     message = {
         "chat_key": get_chat_key(sender_id, recipient_id),
         "sender_id": sender_id, "receiver_id": recipient_id, "text": text.strip(),
         "datetime_sent": now(), "is_seen": False, "seen_time": None,
     }
-    db.Chats.insert_one(message)
+    message["_id"] = db.Chats.insert_one(message).inserted_id
     update_user_metadata(sender_id, recipient_id)
     update_user_metadata(recipient_id, sender_id)
-    return JsonResponse({"status": "success"})
+    return JsonResponse({"status": "success", "message": _message_payload(message)})
 
 
 @login_required
@@ -881,7 +858,7 @@ def add_message(request, user_id):
 @chat_backend_errors
 def chats_partial(request):
     db = get_chat_db()
-    return JsonResponse({"chats": _chat_list(request, db) if db is not None else [], "name": request.userdata.name})
+    return JsonResponse({"chats": _chat_list(request, db), "name": request.userdata.name})
 
 
 def web_dev_team(req):
