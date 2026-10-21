@@ -134,12 +134,12 @@ class ProfileInputValidationTests(TestCase):
 
     def test_invalid_batch_does_not_500(self):
         response = self.client.post(reverse("profile"), self.payload(batch="abc"))
-        self.assertRedirects(response, reverse("profile"))
+        self.assertContains(response, "Please correct the errors")
         self.assertEqual(UserData.objects.get(user=self.user).batch, 2024)
 
     def test_overlong_field_does_not_500(self):
         response = self.client.post(reverse("profile"), self.payload(phone_number="1" * 50))
-        self.assertRedirects(response, reverse("profile"))
+        self.assertContains(response, "Please correct the errors")
         self.assertEqual(UserData.objects.get(user=self.user).phone_number, "9876543210")
 
     def test_invalid_email_rejected(self):

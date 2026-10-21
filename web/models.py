@@ -36,6 +36,21 @@ class PasswordResetThrottle(models.Model):
     attempts = models.PositiveIntegerField(default=0)
     expires_at = models.DateTimeField(db_index=True)
 
+
+class DirectMessage(models.Model):
+    sender = models.ForeignKey(User, on_delete=models.PROTECT, related_name="sent_direct_messages")
+    receiver = models.ForeignKey(User, on_delete=models.PROTECT, related_name="received_direct_messages")
+    text = models.CharField(max_length=4000)
+    datetime_sent = models.DateTimeField(default=timezone.now)
+    is_seen = models.BooleanField(default=False)
+    seen_time = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["sender", "receiver", "-datetime_sent"]),
+            models.Index(fields=["receiver", "is_seen", "sender"]),
+        ]
+
 class UserData(models.Model):
     account_is_approved = models.BooleanField(default=False)
     user = models.OneToOneField(User, on_delete=models.CASCADE)

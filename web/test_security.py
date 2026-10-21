@@ -16,7 +16,7 @@ from django.core.exceptions import ValidationError
 from django.test import Client, TestCase, SimpleTestCase, override_settings
 from django.urls import reverse
 
-from web.models import UserData
+from web.models import DirectMessage, UserData
 
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
@@ -194,9 +194,12 @@ class MessagingSecurityTests(TestCase):
         self.assertEqual(client.post(self.peer_url("update_messages")).status_code, 403)
 
     @patch("web.views.get_chat_db", return_value=None)
-    def test_missing_mongo_does_not_claim_message_was_sent(self, mongo):
+    def test_new_messages_are_persisted_in_postgres_without_mongo(self, mongo):
         response = self.client.post(self.peer_url("add_message"), data=json.dumps({"text": "hello"}), content_type="application/json")
-        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.status_code, 200)
+        stored = DirectMessage.objects.get(sender=self.sender.user, receiver=self.recipient.user)
+        self.assertEqual(stored.text, "hello")
+        self.assertEqual(response.json()["message"]["_id"], str(stored.pk))
 
     @patch("web.views.get_chat_db")
     def test_mongo_failure_is_controlled_503(self, mongo):

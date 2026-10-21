@@ -159,6 +159,9 @@ EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 EMAIL_TIMEOUT = 10
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER or "alumni@nitpy.ac.in")
 PASSWORD_RESET_TIMEOUT = 3600
+CHAT_BACKEND = os.environ.get("CHAT_BACKEND", "postgres").lower()
+if CHAT_BACKEND not in {"postgres", "mongo"}:
+    raise ImproperlyConfigured("CHAT_BACKEND must be postgres or mongo.")
 PASSWORD_RESET_TRUST_RENDER_PROXY = os.environ.get("RENDER", "").lower() == "true"
 PASSWORD_RESET_ORIGIN = os.environ.get("PASSWORD_RESET_ORIGIN", "https://nitpyalumni.com").rstrip("/")
 _reset_origin = urlsplit(PASSWORD_RESET_ORIGIN)
