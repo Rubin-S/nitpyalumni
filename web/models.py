@@ -20,12 +20,17 @@ def send_creation_email(subject, message):
     send_mail(
         subject=subject,
         message=message,
-        from_email=settings.EMAIL_HOST_USER,
+        from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=recipient_list,
         fail_silently=True,
     )
 
 from decimal import Decimal
+
+class PasswordResetThrottle(models.Model):
+    key = models.CharField(max_length=40, primary_key=True)
+    attempts = models.PositiveIntegerField(default=0)
+    expires_at = models.DateTimeField(db_index=True)
 
 class UserData(models.Model):
     account_is_approved = models.BooleanField(default=False)
@@ -101,7 +106,7 @@ class UserData(models.Model):
             send_mail(
                 subject="Your Alumni Account Has Been Approved",
                 message=f"Hi {self.name},\n\nYour alumni account has been approved. You can now log in and access all features.",
-                from_email=settings.EMAIL_HOST_USER,
+                from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=[self.email_id],
                 fail_silently=True
             )

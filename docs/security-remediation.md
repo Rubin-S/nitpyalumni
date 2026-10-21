@@ -79,10 +79,19 @@ python manage.py security_lockdown --apply --revoke-user VERIFIED_ACCOUNT_ID
 This also locks and demotes those explicitly selected accounts. Do not select IDs by
 email/name heuristics. This command is not run during builds or migrations.
 
-Restore a user's access only after identity verification: set a unique password with
-interactive `python manage.py changepassword USERNAME`, set the account active in
-Django admin, and grant only reviewed permissions. Unusable-password accounts must
-not be silently reactivated. Do not send passwords by email or chat.
+After configuring and verifying email delivery, users can recover at
+`/password-reset/`, including inactive users with unusable passwords. Under the
+approved recovery policy, possession of the canonical `User.email` mailbox and
+successful submission of a one-hour, single-use reset link activates the existing
+account. Requesting a link alone makes no account changes. Alumni approval and
+current privilege flags remain unchanged; removed privileges are never restored.
+An inactive flag alone therefore does not permanently ban an account: its owner
+can reactivate through this flow. No accounts or profiles are deleted.
+
+For users who cannot access their registered mailbox, verify identity before
+administrator-assisted recovery using interactive
+`python manage.py changepassword USERNAME` and activating the account in Django
+admin. Grant only reviewed permissions. Do not send passwords by email or chat.
 
 Remove obsolete `DJANGO_SUPERUSER_*` and `NAVEEN_RAJ_PASSWORD` environment variables
 from the live service after containment; removing them from the Blueprint does not

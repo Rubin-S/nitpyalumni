@@ -3,6 +3,7 @@ Django settings for project project.
 """
 
 from pathlib import Path
+from urllib.parse import urlsplit
 import os
 
 import dj_database_url
@@ -144,6 +145,16 @@ EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
 EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "true").lower() in {"1", "true", "yes"}
 EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "alumni@nitpy.ac.in")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_TIMEOUT = 10
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER or "alumni@nitpy.ac.in")
+PASSWORD_RESET_TIMEOUT = 3600
+PASSWORD_RESET_TRUST_RENDER_PROXY = os.environ.get("RENDER", "").lower() == "true"
+PASSWORD_RESET_ORIGIN = os.environ.get("PASSWORD_RESET_ORIGIN", "https://nitpyalumni.com").rstrip("/")
+_reset_origin = urlsplit(PASSWORD_RESET_ORIGIN)
+if (_reset_origin.scheme != "https" or not _reset_origin.hostname
+        or _reset_origin.username or _reset_origin.password
+        or _reset_origin.path or _reset_origin.query or _reset_origin.fragment):
+    raise ImproperlyConfigured("PASSWORD_RESET_ORIGIN must be an HTTPS origin without a path or credentials.")
 
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

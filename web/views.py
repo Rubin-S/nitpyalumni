@@ -357,7 +357,7 @@ def contact_alumni(request, user_id):
             email = EmailMessage(
                 subject=f"New Message: {subject}",
                 body=html_content,
-                from_email=settings.EMAIL_HOST_USER,
+                from_email=settings.DEFAULT_FROM_EMAIL,
                 to=[receiver.email_id],
             )
             email.content_subtype = "html"
