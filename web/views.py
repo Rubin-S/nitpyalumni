@@ -11,7 +11,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
-from django.core.validators import validate_email
+from django.core.validators import URLValidator, validate_email
 from django.db import transaction
 from django.contrib import messages
 from django.core.paginator import Paginator
@@ -27,6 +27,7 @@ from django.utils.timezone import now
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 from web.access import approved_alumni_required
+from web import throttle
 
 from web.models import (
     UserData, DonateBook, JobPosting, Talk, Website,
@@ -35,6 +36,56 @@ from web.models import (
 from web.helper.cf import CloudflareDNSManager
 
 logger = logging.getLogger(__name__)
+
+# Model column limits; longer input would raise a database error (HTTP 500).
+PROFILE_FIELD_LIMITS = {
+    "name": 255, "phone_number": 20, "country": 100, "state": 100, "city": 100,
+    "department": 100, "degree": 50, "present_address": 2000, "job_title": 255,
+    "job_address": 500, "higher_study_uni_name": 255,
+    "higher_study_uni_address": 255, "higher_study_field": 255, "email_id": 254,
+}
+_http_url = URLValidator(schemes=["http", "https"])
+
+
+def clean_social_url(value, label):
+    """Return a safe http(s) URL or "" ; rejects javascript:/data: and junk."""
+    value = (value or "").strip()
+    if not value:
+        return ""
+    if "://" not in value:
+        value = "https://" + value
+    if len(value) > 200:
+        raise ValidationError(f"{label} link is too long.")
+    try:
+        _http_url(value)
+    except ValidationError:
+        raise ValidationError(f"Please enter a valid {label} link (https://...).")
+    return value
+
+
+def check_profile_lengths(values):
+    for field, limit in PROFILE_FIELD_LIMITS.items():
+        value = values.get(field)
+        if value and len(value) > limit:
+            label = field.replace("_", " ")
+            raise ValidationError(f"{label.capitalize()} must be at most {limit} characters.")
+
+
+def clean_batch(raw):
+    try:
+        batch = int(str(raw).strip())
+    except (TypeError, ValueError):
+        raise ValidationError("Please select a valid batch.")
+    if not 1950 <= batch <= 2100:
+        raise ValidationError("Please select a valid batch.")
+    return batch
+
+
+def client_ip(request):
+    """Trusted client IP, or None (then per-IP limits are skipped)."""
+    from web.auth_backend import _client_ip
+    return _client_ip(request)
+
 def index(request):
     if request.user.is_authenticated:
         user = UserData.objects.filter(user=request.user).first()
@@ -64,6 +115,13 @@ def login_view(request):
             login(request, user_auth)
             return redirect("/")
 
+        if getattr(request, "login_throttled", False):
+            messages.error(
+                request,
+                "Too many failed sign-in attempts. Please wait 15 minutes or reset your password.",
+            )
+            return render(request, "login.html", status=429)
+
         # Keep the response identical for unknown emails and bad passwords.
         messages.error(request, "Invalid email or password. Please try again.")
 
@@ -76,6 +134,12 @@ def signup_view(request):
 
     if request.method != "POST":
         return render(request, "signup.html")
+
+    signup_ip = client_ip(request)
+    if signup_ip is not None and not throttle.consume(
+            "signup-ip", signup_ip, settings.SIGNUP_LIMIT_PER_IP_PER_HOUR, 3600):
+        messages.error(request, "Too many sign-up attempts from your network. Please try again later.")
+        return redirect("signup")
 
     try:
         name = (request.POST.get("name") or "").strip()
@@ -125,11 +189,18 @@ def signup_view(request):
             raise ValidationError("User not valid.")
 
         validate_email(email_id)
-
-        try:
-            batch = int(batch_raw)
-        except (TypeError, ValueError):
-            raise ValidationError("Please select a valid batch.")
+        check_profile_lengths({
+            "name": name, "phone_number": phone_number, "country": country,
+            "state": state, "city": city, "department": department, "degree": degree,
+            "present_address": present_address, "job_title": job_title,
+            "job_address": job_address, "higher_study_uni_name": higher_study_uni_name,
+            "higher_study_uni_address": higher_study_uni_address,
+            "higher_study_field": higher_study_field, "email_id": email_id,
+        })
+        linked_id = clean_social_url(linked_id, "LinkedIn")
+        facebook = clean_social_url(facebook, "Facebook")
+        instagram = clean_social_url(instagram, "Instagram")
+        batch = clean_batch(batch_raw)
 
         if current_status not in {"job", "study", "none"}:
             raise ValidationError("Please select a valid current status.")
@@ -332,7 +403,14 @@ def get_transcript_request(request):
 
     return render(request, 'get_transcript.html')
 
+@require_http_methods(["GET", "POST"])
 def auth_logout(request):
+    # Only a CSRF-protected POST signs out; a GET logout lets any site sign
+    # users out. Old links/bookmarks get a confirmation button instead.
+    if request.method != "POST":
+        if not request.user.is_authenticated:
+            return redirect('login')
+        return render(request, "logout_confirm.html")
     logout(request)
     messages.success(request, "You have been logged out successfully.")
     return redirect('login')
@@ -344,8 +422,16 @@ def contact_alumni(request, user_id):
     receiver = _chat_peer(request, user_id)
     try:
         if request.method == 'POST':
-            subject = request.POST.get('subject')
-            message = request.POST.get('message')
+            subject = " ".join((request.POST.get('subject') or "").split())
+            message = (request.POST.get('message') or "").strip()
+            if not 1 <= len(subject) <= 150 or not 1 <= len(message) <= 5000:
+                messages.error(request, "Please enter a subject (max 150 characters) and a message (max 5000 characters).")
+                return redirect('alumni_map')
+            # Each send uses the site's shared email quota and reputation.
+            if not throttle.consume("contact-email", str(request.user.pk),
+                                    settings.CONTACT_EMAIL_LIMIT_PER_USER_PER_DAY, 86400):
+                messages.error(request, "You have reached today's limit for contact emails. Please try again tomorrow or use chat.")
+                return redirect('alumni_map')
 
             # Render HTML email
             html_content = render_to_string('email/contact_email.html', {
@@ -367,6 +453,8 @@ def contact_alumni(request, user_id):
             return redirect('alumni_map')
         return redirect(f'/chat/{receiver.user.id}/')
     except Exception:
+        logger.exception("Contact email could not be sent")
+        messages.error(request, "Your message could not be sent. Please try again later.")
         return redirect('/')
 
 @login_required
@@ -491,20 +579,37 @@ def profile_view(request):
 
     is_approved = user_data.account_is_approved
     if request.method == 'POST':
+        post = {key: (request.POST.get(key) or "").strip() for key in (
+            "name", "phone_number", "email_id", "country", "state", "city", "degree",
+            "department", "present_address", "job_title", "job_address",
+            "higher_study_uni_name", "higher_study_uni_address", "higher_study_field",
+        )}
+        try:
+            check_profile_lengths(post)
+            if post["email_id"]:
+                validate_email(post["email_id"])
+            batch = clean_batch(request.POST.get('batch', user_data.batch))
+            linked_in = clean_social_url(request.POST.get('linkedin'), "LinkedIn")
+            facebook = clean_social_url(request.POST.get('facebook'), "Facebook")
+            instagram = clean_social_url(request.POST.get('instagram'), "Instagram")
+        except ValidationError as exc:
+            messages.error(request, " ".join(exc.messages))
+            return redirect('profile')
+
         # Update fields from form input
-        user_data.name = request.POST.get('name', '').strip()
-        user_data.phone_number = request.POST.get('phone_number', '').strip()
-        user_data.email_id = request.POST.get('email_id', '').strip()
-        user_data.country = request.POST.get('country', '').strip()
-        user_data.state = request.POST.get('state', '').strip()
-        user_data.city = request.POST.get('city', '').strip()
-        user_data.batch = request.POST.get('batch', user_data.batch)
-        user_data.degree = request.POST.get('degree', user_data.degree)
-        user_data.department = request.POST.get('department', user_data.department)
-        user_data.present_address = request.POST.get('present_address', '').strip()
-        user_data.linked_in = request.POST.get('linkedin', '').strip()
-        user_data.facebook = request.POST.get('facebook', '').strip()
-        user_data.instagram = request.POST.get('instagram', '').strip()
+        user_data.name = post["name"]
+        user_data.phone_number = post["phone_number"]
+        user_data.email_id = post["email_id"]
+        user_data.country = post["country"]
+        user_data.state = post["state"]
+        user_data.city = post["city"]
+        user_data.batch = batch
+        user_data.degree = post["degree"] or user_data.degree
+        user_data.department = post["department"] or user_data.department
+        user_data.present_address = post["present_address"]
+        user_data.linked_in = linked_in
+        user_data.facebook = facebook
+        user_data.instagram = instagram
 
         current_status = request.POST.get('current_status', '')
         user_data.in_job = (current_status == 'job')

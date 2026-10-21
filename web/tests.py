@@ -316,7 +316,7 @@ class AuthenticationFlowTests(TestCase):
         self.login()
         self.assertIn("_auth_user_id", self.client.session)
 
-        response = self.client.get(reverse("logout"))
+        response = self.client.post(reverse("logout"))
 
         self.assertRedirects(response, reverse("login"))
         self.assertNotIn("_auth_user_id", self.client.session)

@@ -5,7 +5,11 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.conf import settings
+import logging
+
 import requests
+
+logger = logging.getLogger(__name__)
 
 recipient_list = [
     email.strip()
@@ -89,8 +93,9 @@ class UserData(models.Model):
                         if "geo" in first_result:
                             self.lat = Decimal(str(first_result["geo"]["latitude"]))
                             self.lng = Decimal(str(first_result["geo"]["longitude"]))
-            except Exception as e:
-                print(f"Geocoding failed: {e}")
+            except Exception:
+                # The exception text can contain the request URL and API key.
+                logger.warning("Geocoding failed for a profile location update.")
 
         super().save(*args, **kwargs)
 

@@ -25,7 +25,7 @@ class CloudflareDNSManager:
         if comment:
             data["comment"] = comment
 
-        response = requests.post(self.base_url, headers=self.headers, json=data)
+        response = requests.post(self.base_url, headers=self.headers, json=data, timeout=10)
         return response.json()
 
     def list_records(self, record_type: str = None):
@@ -33,7 +33,7 @@ class CloudflareDNSManager:
         if record_type:
             params["type"] = record_type
 
-        response = requests.get(self.base_url, headers=self.headers, params=params)
+        response = requests.get(self.base_url, headers=self.headers, params=params, timeout=10)
         return response.json()
 
     def search_records(self, name: str = None, content: str = None, record_type: str = None):
@@ -49,7 +49,7 @@ class CloudflareDNSManager:
         if record_type:
             params["type"] = record_type
 
-        response = requests.get(self.base_url, headers=self.headers, params=params)
+        response = requests.get(self.base_url, headers=self.headers, params=params, timeout=10)
         return response.json()
 
     def update_record(self, record_id: str, record_type: str, name: str, content: str, ttl: int = 3600, proxied: bool = False, comment: str = None):
@@ -64,11 +64,10 @@ class CloudflareDNSManager:
             data["comment"] = comment
 
         url = f"{self.base_url}/{record_id}"
-        response = requests.put(url, headers=self.headers, json=data)
+        response = requests.put(url, headers=self.headers, json=data, timeout=10)
         return response.json()
 
     def delete_record(self, record_id: str):
         url = f"{self.base_url}/{record_id}"
-        response = requests.delete(url, headers=self.headers)
-        print(response.json())
+        response = requests.delete(url, headers=self.headers, timeout=10)
         return response.json()

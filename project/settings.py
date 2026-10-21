@@ -19,6 +19,13 @@ if not SECRET_KEY:
         raise ImproperlyConfigured("SECRET_KEY must be set in production.")
     SECRET_KEY = "django-insecure-local-dev-only-not-for-production"
 
+# Optional graceful rotation: put the *previous* key here (comma-separated) after
+# setting a new SECRET_KEY, so existing sessions and reset links keep working
+# while users are re-signed. Remove it once the rotation window has passed.
+SECRET_KEY_FALLBACKS = [
+    key.strip() for key in os.environ.get("SECRET_KEY_FALLBACKS", "").split(",") if key.strip()
+]
+
 DEBUG = os.environ.get("DEBUG", "false").lower() in {"1", "true", "yes"}
 
 ALLOWED_HOSTS = [
@@ -38,7 +45,9 @@ CSRF_TRUSTED_ORIGINS = [
     origin.strip()
     for origin in os.environ.get(
         "CSRF_TRUSTED_ORIGINS",
-        "https://*.onrender.com,https://nitpyalumni.com,https://www.nitpyalumni.com",
+        # No wildcard: any third-party *.onrender.com app would otherwise pass the
+        # Origin check. The service's own Render hostname is appended below.
+        "https://nitpyalumni.com,https://www.nitpyalumni.com",
     ).split(",")
     if origin.strip()
 ]
@@ -65,6 +74,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "web.middleware.SecurityHeadersMiddleware",
 ]
 
 ROOT_URLCONF = "project.urls"
@@ -93,6 +103,7 @@ if database_url:
         "default": dj_database_url.parse(
             database_url,
             conn_max_age=600,
+            conn_health_checks=True,
             ssl_require=os.environ.get("DATABASE_SSL", "true").lower() in {"1", "true", "yes"},
         )
     }
@@ -160,5 +171,52 @@ if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-    # Render health checks hit HTTP on PORT; TLS is terminated at the proxy.
+    # Render health checks hit HTTP on PORT; TLS is terminated at the proxy, and
+    # Render/Cloudflare already redirect public HTTP to HTTPS at the edge.
     SECURE_SSL_REDIRECT = False
+    # HSTS for the exact host only. includeSubDomains/preload are deliberately
+    # off: member subdomains and mail CNAMEs may not all serve HTTPS.
+    SECURE_HSTS_SECONDS = int(os.environ.get("SECURE_HSTS_SECONDS", "31536000"))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+    SECURE_HSTS_PRELOAD = False
+    SILENCED_SYSTEM_CHECKS = [
+        "security.W005",  # includeSubDomains intentionally off (see above).
+        "security.W008",  # HTTPS redirect is enforced by the Render edge.
+        "security.W021",  # HSTS preload intentionally off (hard to undo).
+    ]
+
+# Explicit cookie/header policy (Django defaults, pinned so they cannot drift).
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SAMESITE = "Lax"
+X_FRAME_OPTIONS = "DENY"
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = "same-origin"
+SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
+
+
+# Brute-force limits for /login/ and /admin/login/ (failed attempts per window).
+LOGIN_FAILURE_LIMIT_PER_ACCOUNT = int(os.environ.get("LOGIN_FAILURE_LIMIT_PER_ACCOUNT", "10"))
+LOGIN_FAILURE_LIMIT_PER_IP = int(os.environ.get("LOGIN_FAILURE_LIMIT_PER_IP", "50"))
+LOGIN_FAILURE_WINDOW_SECONDS = int(os.environ.get("LOGIN_FAILURE_WINDOW_SECONDS", "900"))
+SIGNUP_LIMIT_PER_IP_PER_HOUR = int(os.environ.get("SIGNUP_LIMIT_PER_IP_PER_HOUR", "10"))
+CONTACT_EMAIL_LIMIT_PER_USER_PER_DAY = int(os.environ.get("CONTACT_EMAIL_LIMIT_PER_USER_PER_DAY", "10"))
+
+# Send errors to stdout/stderr so Render logs capture 500s (Django's default
+# only emails ADMINS when DEBUG is off, and none are configured).
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "plain": {"format": "%(asctime)s %(levelname)s %(name)s: %(message)s"},
+    },
+    "handlers": {
+        "console": {"class": "logging.StreamHandler", "formatter": "plain"},
+    },
+    "root": {"handlers": ["console"], "level": os.environ.get("LOG_LEVEL", "INFO")},
+    "loggers": {
+        "django": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        # Disallowed-host probes are noisy and not actionable.
+        "django.security.DisallowedHost": {"handlers": [], "propagate": False},
+    },
+}
