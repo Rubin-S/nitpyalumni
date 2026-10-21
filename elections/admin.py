@@ -1,5 +1,7 @@
 import csv
 
+from web.csv_safe import safe_row
+
 from django.contrib import admin, messages
 from django.http import HttpResponse
 from django.utils.html import format_html, format_html_join
@@ -148,7 +150,7 @@ class ElectionAdmin(admin.ModelAdmin):
             "election", "voter"
         ).order_by("election__title", "voter__name")
         for r in records:
-            writer.writerow([r.election.title, r.voter.roll_no, r.voter.name, r.voter.batch, r.voter.department])
+            writer.writerow(safe_row([r.election.title, r.voter.roll_no, r.voter.name, r.voter.batch, r.voter.department]))
         return response
 
 

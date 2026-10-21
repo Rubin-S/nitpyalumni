@@ -1,6 +1,8 @@
 from django.contrib import admin
 from django.http import HttpResponse
 import csv
+
+from web.csv_safe import safe_row
 from .models import (
     UserData, JobPosting, Talk, DonateBook, Website,
     GuestHouseBookingRequest, CardApplicationRequest, GetTranscriptRequest
@@ -12,12 +14,12 @@ def export_as_csv(modeladmin, request, queryset):
     field_names = [field.name for field in meta.fields]
 
     response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = f'attachment; filename={meta}.csv'
+    response['Content-Disposition'] = f'attachment; filename="{meta.model_name}.csv"'
     writer = csv.writer(response)
 
     writer.writerow(field_names)
     for obj in queryset:
-        writer.writerow([getattr(obj, field) for field in field_names])
+        writer.writerow(safe_row([getattr(obj, field) for field in field_names]))
 
     return response
 
