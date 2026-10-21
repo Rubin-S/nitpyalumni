@@ -10,7 +10,7 @@
                     <h3 class="text-center mb-4 fw-bold">Welcome Back!</h3>
                     <p class="text-center text-muted mb-4">Sign in to your account and join us</p>
 
-                    <form method="post">
+                    <form method="post" id="login-form">
                         {% csrf_token %}
                         {% if messages %}
                             {% for message in messages %}
@@ -46,4 +46,31 @@
         </div>
     </div>
 </section>
+<script>
+    (() => {
+        const form = document.getElementById('login-form');
+        const button = form.querySelector('button[type="submit"]');
+        const label = button.textContent;
+        let submitting = false;
+
+        form.addEventListener('submit', (event) => {
+            if (submitting) {
+                event.preventDefault();
+                return;
+            }
+            submitting = true;
+            button.disabled = true;
+            button.textContent = 'Signing in…';
+        });
+
+        // Back/forward navigation can restore this exact document and its state.
+        window.addEventListener('pageshow', (event) => {
+            if (event.persisted) {
+                submitting = false;
+                button.disabled = false;
+                button.textContent = label;
+            }
+        });
+    })();
+</script>
 {% endblock %}
