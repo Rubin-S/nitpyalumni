@@ -1,7 +1,6 @@
 """Tests for the production security hardening pass."""
 import csv
 import io
-from unittest.mock import patch
 
 from django.conf import settings
 from django.contrib.admin.sites import site as admin_site

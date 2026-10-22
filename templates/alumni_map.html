@@ -5,15 +5,12 @@
   <h2>{% if messaging_only %}Start a conversation{% else %}Alumni Map{% endif %}</h2>
   {% if messaging_only %}<p>Choose an active, approved alumnus below to open a private conversation.</p>{% endif %}
 
-  <!-- Search Bar -->
   <div class="mb-3">
     <input type="text" id="searchInput" class="form-control" placeholder="Search by name, roll no, city, batch, department, etc."/>
   </div>
 
-  <!-- Map -->
   <div id="map" style="height: 500px;" class="mb-4"></div>
 
-  <!-- Alumni Table -->
   <h4>Alumni in View</h4>
   <div class="table-responsive">
     <table class="table table-bordered" id="alumniTable">
@@ -27,13 +24,11 @@
         </tr>
       </thead>
       <tbody>
-        <!-- Filled dynamically -->
       </tbody>
     </table>
   </div>
 </div>
 
-<!-- Leaflet JS & CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 

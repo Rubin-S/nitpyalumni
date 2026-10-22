@@ -5,7 +5,6 @@
     <meta charset="UTF-8">
     <title>{% block title %}NITPY Alumni{% endblock %}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
 </head>
 <body class="bg-light text-dark">
@@ -26,7 +25,6 @@
                 <a class="nav-link" href="/">Home</a>
               </li>
       
-              <!-- About Dropdown -->
               <li class="nav-item dropdown">
                 <a class="nav-link dropdown-toggle" href="#" id="aboutDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                   About
@@ -37,7 +35,6 @@
                 </ul>
               </li>
       
-              <!-- Engage Dropdown -->
               <li class="nav-item dropdown">
                 <a class="nav-link dropdown-toggle" href="#" id="engageDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                   Engage
@@ -53,7 +50,6 @@
                 </ul>
               </li>
       
-              <!-- Resources Dropdown -->
               <li class="nav-item dropdown">
                 <a class="nav-link dropdown-toggle" href="#" id="resourcesDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                   Support
@@ -112,20 +108,18 @@
       </nav>
       
 
-    <!-- Main Content -->
     <main class="container my-5">
         {% block content %}
         {% endblock %}
     </main>
 
-    <!-- Footer -->
     <footer class="bg-white text-dark pt-5 pb-3 mt-5 border-top">
         <div class="container">
             <div class="row">
 
                 <div class="col-md-4 mb-4">
                     <h5>About Us</h5>
-                    <p>Welcome to our Alumni Association, where lifelong connections are nurtured and cherished. We celebrate the achievements of our alumni.</p>
+                    <p>Connect with NIT Puducherry alumni, find opportunities, and access alumni services.</p>
                 </div>
 
                 <div class="col-md-4 mb-4">
@@ -164,7 +158,6 @@
         </div>
     </footer>
 
-    <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
     {%if request.user.is_authenticated%}
     <script>

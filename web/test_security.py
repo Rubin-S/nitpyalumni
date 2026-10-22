@@ -50,7 +50,7 @@ class SecurityAccountTests(TestCase):
         owner.email_id = "unverified@example.com"
         owner.save()
         self.assertIsNone(authenticate(username="unverified@example.com", password="SafePass!7392"))
-        response = self.client.post(reverse("login"), {"email": "unverified@example.com", "password": "SafePass!7392"})
+        self.client.post(reverse("login"), {"email": "unverified@example.com", "password": "SafePass!7392"})
         self.assertNotIn("_auth_user_id", self.client.session)
 
     def test_ambiguous_identity_fails_closed(self):

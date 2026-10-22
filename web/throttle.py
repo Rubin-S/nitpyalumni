@@ -1,8 +1,4 @@
-"""Database-backed fixed-window rate limits shared by all gunicorn workers.
-
-Reuses the PasswordResetThrottle table (an opaque HMAC key -> counter), so no
-schema migration is required. Keys never contain raw emails, usernames or IPs.
-"""
+"""Shared fixed-window rate limits with HMAC keys that hide client identities."""
 from datetime import timedelta
 
 from django.db import transaction

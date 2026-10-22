@@ -1,7 +1,3 @@
-"""
-Django settings for project project.
-"""
-
 from pathlib import Path
 from urllib.parse import urlsplit
 import os

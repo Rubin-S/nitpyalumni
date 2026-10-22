@@ -21,7 +21,7 @@ from django.core.mail import EmailMessage
 from django.conf import settings
 from django.template.loader import render_to_string
 from django.db.models import Q, Prefetch
-from django.http import JsonResponse, HttpResponseForbidden, Http404
+from django.http import JsonResponse, Http404
 from django.views.decorators.http import require_POST, require_GET, require_http_methods
 from django.utils.timezone import now
 from pymongo import MongoClient
@@ -33,7 +33,7 @@ from web import throttle
 
 from web.models import (
     UserData, DirectMessage, DonateBook, JobPosting, Talk, Website,
-    GuestHouseBookingRequest, CardApplicationRequest, GetTranscriptRequest
+    GuestHouseBookingRequest, GetTranscriptRequest
 )
 from web.helper.cf import CloudflareDNSManager
 
@@ -299,7 +299,6 @@ def alumni_map(request):
     if messaging_only:
         alumni_queryset = alumni_queryset.filter(user__is_active=True).exclude(user=request.user)
 
-    # Filter by bounding box if provided
     if not messaging_only and all([south, west, north, east]):
         try:
             s_val = Decimal(south)
@@ -335,7 +334,6 @@ def alumni_map(request):
             Q(higher_study_field__icontains=search_query)
         )
 
-    # AJAX response for map-based query
     if request.headers.get('x-requested-with') == 'XMLHttpRequest':
         alumni_data = [{
             'id': a.user.pk,
@@ -350,11 +348,9 @@ def alumni_map(request):
 
         return JsonResponse({'alumni': alumni_data})
 
-    # Regular HTML page render
     return render(request, 'alumni_map.html', {
         'alumni_list': alumni_queryset, 'messaging_only': messaging_only,
     })
-
 
 
 @login_required
@@ -439,7 +435,6 @@ def contact_alumni(request, user_id):
                 messages.error(request, "You have reached today's limit for contact emails. Please try again tomorrow or use chat.")
                 return redirect('alumni_map')
 
-            # Render HTML email
             html_content = render_to_string('email/contact_email.html', {
                 'subject': subject,
                 'message': message,
@@ -869,12 +864,6 @@ def web_dev_team(req):
     return render(req, "web_dev_team.html")
 
 
-# 20/06/2025
-
-# views.py
-
-
-
 def get_cf_manager():
     api_token = os.environ.get("CF_API_TOKEN", "")
     zone_id = os.environ.get("CF_ZONE_ID", "")
@@ -922,10 +911,6 @@ def validate_subdomain_and_content(name, record_type, content):
 
 @login_required
 def manage_website_view(request):
-    """
-    Shows current website info (if any) and handles creation, update, and deletion.
-    Secured: Ensures user can only edit/delete THEIR OWN website.
-    """
     user_data = UserData.objects.filter(user=request.user).first()
     if not user_data or not user_data.account_is_approved:
         return redirect('/')
@@ -1059,8 +1044,6 @@ def manage_website_view(request):
         "current_record_type": current_record_type
     })
 
-
-# Custom Error Handlers
 def custom_bad_request(request, exception=None):
     return render(request, 'error.html', {'error_message': 'Bad Request', 'error_code': 400}, status=400)
 

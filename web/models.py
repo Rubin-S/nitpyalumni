@@ -19,7 +19,7 @@ recipient_list = [
     ).split(",")
     if email.strip()
 ]
-# Utility function to send email
+
 def send_creation_email(subject, message):
     send_mail(
         subject=subject,
@@ -84,7 +84,6 @@ class UserData(models.Model):
         is_new = self.pk is None
         old_instance = None
 
-        # Fetch old instance safely to check if approval status or location changed
         if not is_new:
             old_instance = UserData.objects.filter(pk=self.pk).first()
 
@@ -114,14 +113,12 @@ class UserData(models.Model):
 
         super().save(*args, **kwargs)
 
-        # Send creation email on new user
         if is_new:
             send_creation_email(
                 f"New User {self.name} has applied for alumni account",
                 f"A new user named: {self.name}, phone number: {self.phone_number} has applied. Kindly check admin panel to approve or reject the request"
             )
 
-        # Send approval email if status changed to approved
         if old_instance and not old_instance.account_is_approved and self.account_is_approved:
             send_mail(
                 subject="Your Alumni Account Has Been Approved",

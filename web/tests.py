@@ -1,4 +1,3 @@
-import re
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
@@ -6,7 +5,7 @@ from django.core import mail
 from django.test import TestCase, RequestFactory, override_settings
 from django.urls import reverse
 
-from web.models import UserData, Website
+from web.models import UserData
 from web.views import (
     validate_subdomain_and_content,
     custom_bad_request,
@@ -51,20 +50,6 @@ class SubdomainValidationTests(TestCase):
         name, rtype, content, err = validate_subdomain_and_content("myhost", "A", "not-an-ip")
         self.assertIsNotNone(err)
         self.assertIn("Invalid IPv4", err)
-
-
-class RollNumberRegexTests(TestCase):
-    PATTERN = r'^[A-Z]{2}\d{2}[A-Z]{1}\d{4}$'
-
-    def test_valid_roll_numbers(self):
-        valid_rolls = ["CS20B1001", "EC19B1024", "ME21B2005", "EE22B1033"]
-        for roll in valid_rolls:
-            self.assertIsNotNone(re.match(self.PATTERN, roll))
-
-    def test_invalid_roll_numbers(self):
-        invalid_rolls = ["cs20b1001", "CS201001", "CS20B100", "INVALID", ""]
-        for roll in invalid_rolls:
-            self.assertIsNone(re.match(self.PATTERN, roll))
 
 
 class CustomErrorHandlerTests(TestCase):
