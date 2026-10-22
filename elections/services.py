@@ -13,7 +13,7 @@ from django.utils import timezone
 
 from elections import notifications
 from elections.eligibility import can_nominate, can_vote, eligible_voters
-from elections.models import Election, Nomination, Position, Vote, VoterRecord
+from elections.models import Election, Nomination, Vote, VoterRecord
 from web.models import UserData
 
 Phase = Election.Phase
@@ -51,9 +51,6 @@ def _lock_member(userdata):
         raise ElectionError("This alumni account is no longer available.")
 
 
-# --------------------------------------------------------------------------- #
-# Nominations
-# --------------------------------------------------------------------------- #
 
 def active_nomination(election, userdata):
     return Nomination.objects.filter(
@@ -131,9 +128,6 @@ def review_nomination(nomination, approve):
     return nomination
 
 
-# --------------------------------------------------------------------------- #
-# Voting
-# --------------------------------------------------------------------------- #
 
 def ballot_positions(election):
     """Positions of the election with their approved candidates prefetched."""
@@ -230,9 +224,6 @@ def cast_ballot(election, userdata, selections):
     notifications.send_vote_receipt(election, userdata)
 
 
-# --------------------------------------------------------------------------- #
-# Results
-# --------------------------------------------------------------------------- #
 
 def tally(election):
     """
@@ -297,9 +288,6 @@ def publish_results(election):
     return election
 
 
-# --------------------------------------------------------------------------- #
-# Announcements
-# --------------------------------------------------------------------------- #
 
 @atomic_mutation
 def announce_voting_open(election):

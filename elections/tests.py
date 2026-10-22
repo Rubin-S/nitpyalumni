@@ -14,7 +14,6 @@ from django.utils import timezone
 from elections import notifications, services
 from elections.eligibility import can_nominate, can_vote, eligible_voters
 from elections.models import Election, ElectionMail, Nomination, Position, Vote, VoterRecord
-from elections.notifications import VOTING_OPEN_BATCH_SIZE
 from elections.services import ElectionError
 from web.models import UserData
 
@@ -95,9 +94,6 @@ def approved_nomination(election, position, candidate, manifesto="Vote for me"):
     )
 
 
-# --------------------------------------------------------------------------- #
-# Model / phase
-# --------------------------------------------------------------------------- #
 
 class ElectionPhaseTests(TestCase):
     def setUp(self):
@@ -136,9 +132,6 @@ class ElectionPhaseTests(TestCase):
             self.election.clean()
 
 
-# --------------------------------------------------------------------------- #
-# Eligibility
-# --------------------------------------------------------------------------- #
 
 class EligibilityTests(TestCase):
     def test_can_vote_truth_table(self):
@@ -169,9 +162,6 @@ class EligibilityTests(TestCase):
         self.assertFalse(ud.is_eligible_to_vote)
 
 
-# --------------------------------------------------------------------------- #
-# Nominations
-# --------------------------------------------------------------------------- #
 
 class NominationServiceTests(TestCase):
     def setUp(self):
@@ -267,9 +257,6 @@ class NominationServiceTests(TestCase):
             services.review_nomination(nom, approve=True)
 
 
-# --------------------------------------------------------------------------- #
-# Ballots
-# --------------------------------------------------------------------------- #
 
 class BallotServiceTests(TestCase):
     def setUp(self):
@@ -370,9 +357,6 @@ class SecrecyTests(TestCase):
         self.assertNotIn(Vote, admin.site._registry)
 
 
-# --------------------------------------------------------------------------- #
-# Results
-# --------------------------------------------------------------------------- #
 
 class ResultsTests(TestCase):
     def setUp(self):
@@ -429,9 +413,6 @@ class ResultsTests(TestCase):
             services.publish_results(self.election)
 
 
-# --------------------------------------------------------------------------- #
-# Views
-# --------------------------------------------------------------------------- #
 
 class ElectionViewTests(TestCase):
     def setUp(self):
@@ -557,9 +538,6 @@ class ElectionViewTests(TestCase):
         self.assertEqual(nom.status, Nomination.Status.WITHDRAWN)
 
 
-# --------------------------------------------------------------------------- #
-# Admin
-# --------------------------------------------------------------------------- #
 
 class AdminTests(TestCase):
     def setUp(self):
@@ -595,8 +573,9 @@ class AdminTests(TestCase):
         self.election.refresh_from_db()
         self.assertTrue(self.election.results_published)
 
-    def test_email_voters_voting_open_batches_and_only_once(self):
-        voters = [make_alumnus() for _ in range(55)]
+    def test_email_voters_voting_open_queues_each_recipient_once(self):
+        for _ in range(55):
+            make_alumnus()
         make_alumnus(eligible=False)
         make_alumnus(approved=False)
         self.run_action("email_voters_voting_open")
@@ -705,7 +684,7 @@ class AdminTests(TestCase):
             services.check_can_cast(empty_election, voter)
         self.assertIn("no positions", str(ctx.exception))
 
-        pos = fixture_position(election=empty_election, title="Chair")
+        fixture_position(election=empty_election, title="Chair")
         with self.assertRaises(ElectionError) as ctx:
             services.check_can_cast(empty_election, voter)
         self.assertIn("no approved candidates", str(ctx.exception))

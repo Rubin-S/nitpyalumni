@@ -1,8 +1,4 @@
-"""A lightweight durable-mail drain in the existing web-service workers.
-
-No additional Render service is needed. Database claims and the shared daily
-budget coordinate workers; process restarts never discard queued mail.
-"""
+"""Run the election mail queue in each Gunicorn worker."""
 
 
 def post_worker_init(worker):

@@ -1,10 +1,4 @@
-"""
-Single source of truth for election eligibility.
-
-Future eligibility rules (batch ranges, membership dues, ...) should be added
-here. Keep ``can_vote`` and ``eligible_voters`` in sync: the first checks one
-member, the second returns the same set of members as a queryset.
-"""
+"""Election eligibility for individual checks and recipient queries."""
 from web.models import UserData
 
 

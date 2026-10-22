@@ -1,133 +1,92 @@
-# Security remediation
+# Security operations
 
-## Application changes
+## Deployment and backups
 
-- Removed the legacy account promotion and destructive CSV import scripts, including
-  all build hooks and example provisioning environment variables. Normal builds
-  install dependencies, collect static assets, and apply schema migrations only.
-- Canonical Django usernames/emails are the only login identities. Ambiguous legacy
-  identities fail closed. Editable contact emails never select an authentication
-  account. The legacy shared passwords are rejected by the sole authentication
-  backend, including Django admin; the fallback backend that bypassed this policy
-  has been removed. Existing sessions for accounts still using a legacy password are
-  rejected on their next request, before the explicit database containment step.
-- Every messaging endpoint requires an active, approved alumni profile, including
-  staff accounts. Peer endpoints also require a different active, approved recipient.
-  Mongo queries check both participant IDs independently of the legacy chat hash.
-  Existing messages remain readable without a data migration.
-- Message-read updates use POST with CSRF protection. Message JSON, type, size,
-  recipient IDs, and offsets are validated. Backend failures return controlled
-  responses without connection strings. Message responses expose only display fields.
-- User-authored text is rendered using DOM text nodes in chat, history, map markers,
-  popups, and table rows. Failed message sends preserve the draft.
-- Removed the tracked alumni CSV and server log; added ignore rules and a CI guard
-  for tracked operational data, personal-data CSV headers, and the credential forms
-  found in historical source. This guard is targeted prevention, not a comprehensive
-  secret scanner. Enable GitHub secret scanning/push protection as well.
+Keep database exports, logs, environment files, and credentials outside Git.
+Before data maintenance, take a private database backup, test its restoration in
+an isolated database, and record account, profile, nomination, and vote counts.
+Back up legacy MongoDB separately when access is available. Temporary files are
+not durable backups.
 
-## Before production rollout
+Deploy to `Rubin-S/nitpyalumni` using the verified `production` remote. This
+checkout's `origin` belongs to a different owner. Normal builds must never import
+datasets, restore backups, create accounts, or grant privileges.
 
-1. Take a private PostgreSQL backup and verify that it can be restored to an isolated
-   database. Back up MongoDB separately. Record counts of users, profiles, nominations,
-   voter records, and votes. Do not store exports or credentials in this repository.
-2. Verify an independently provisioned administrator with a strong, unique password
-   and access to the Render shell. Never reuse a bootstrap password. Use interactive
-   `python manage.py createsuperuser` if a recovery administrator is needed; confirm
-   existing users before choosing a new identity. Do not place passwords in command
-   arguments, logs, chat, or source control.
-3. Deploy the reviewed patch to the `Rubin-S/nitpyalumni` repository/service. The local
-   checkout also has an `origin` pointing to a different owner's repository; use the
-   verified `production` remote or the intended GitHub repository explicitly.
-   Compute-plan fields are omitted so syncing this existing Blueprint retains the
-   live web-service and database plans rather than applying stale Free-plan settings.
-4. Check `/healthz`, canonical username/email and admin login, pending-user messaging
-   denial, approved-member conversations, and election counts.
+Check `/healthz`, username/email and admin login, approved-member messaging,
+pending-user access denial, and election counts after deployment. Retain additive
+schema on code rollbacks: reversing message or election-mail migrations deletes
+their stored data. Never restore an old database over current voting data.
 
-## Existing account and session containment
+## Account containment and recovery
 
-Run in the production application shell after deploying the patch:
+First verify an independent administrator with a unique password and production
+shell access. Use interactive `createsuperuser` if necessary; never put passwords
+in command arguments, logs, email, chat, or source control.
 
 ```bash
 python manage.py security_lockdown
 ```
 
-This is a dry run. It reports account IDs with legacy passwords and all privileged
-account IDs; it prints no passwords, hashes, emails, or message content. Checking
-password hashes can take time. Confirm which administrators are legitimate through
-an independent identity check. Strong passwords do not prove that privileges were
-legitimately assigned by the old scripts.
-
-Once recovery administrator access is verified:
+The default dry run reports legacy-password and privileged account IDs without
+passwords, hashes, or emails. Verify identities independently; a strong password
+does not establish that an old privilege grant was legitimate.
 
 ```bash
 python manage.py security_lockdown --apply
-```
-
-This disables accounts using legacy shared passwords, removes their staff/superuser
-flags, gives them unusable passwords, and deletes **all database sessions** because
-stored XSS could have affected any session. Profiles, nominations, votes, and service
-requests are preserved. Sessions on the removed fallback authentication backend are
-also no longer accepted. Re-running containment is safe.
-
-For a separately reviewed account whose privileges were improperly assigned, add an
-explicit ID (repeat for multiple accounts):
-
-```bash
 python manage.py security_lockdown --apply --revoke-user VERIFIED_ACCOUNT_ID
 ```
 
-This also locks and demotes those explicitly selected accounts. Do not select IDs by
-email/name heuristics. This command is not run during builds or migrations.
+`--apply` disables legacy shared-password accounts, removes their staff/superuser
+flags, assigns unusable passwords, and clears all database sessions. The optional,
+repeatable `--revoke-user` applies the same containment to explicitly reviewed IDs.
+Profiles, nominations, votes, and service requests remain intact. These commands
+are maintenance operations, never build steps.
 
-After configuring and verifying email delivery, users can recover at
-`/password-reset/`, including inactive users with unusable passwords. Under the
-approved recovery policy, possession of the canonical `User.email` mailbox and
-successful submission of a one-hour, single-use reset link activates the existing
-account. Requesting a link alone makes no account changes. Alumni approval and
-current privilege flags remain unchanged; removed privileges are never restored.
-An inactive flag alone therefore does not permanently ban an account: its owner
-can reactivate through this flow. No accounts or profiles are deleted.
+Recovery through the canonical mailbox reactivates existing accounts and preserves
+current permissions; it does not restore revoked privileges. **An inactive flag
+alone is not a permanent ban under this policy.** For inaccessible mailboxes or
+duplicate canonical emails, verify identity before correcting the account or using
+interactive `python manage.py changepassword USERNAME` and activating it in admin.
+Remove obsolete `DJANGO_SUPERUSER_*` and `NAVEEN_RAJ_PASSWORD` service variables.
 
-For users who cannot access their registered mailbox, verify identity before
-administrator-assisted recovery using interactive
-`python manage.py changepassword USERNAME` and activating the account in Django
-admin. Grant only reviewed permissions. Do not send passwords by email or chat.
+## Credentials and request limits
 
-Remove obsolete `DJANGO_SUPERUSER_*` and `NAVEEN_RAJ_PASSWORD` environment variables
-from the live service after containment; removing them from the Blueprint does not
-prove the existing service environment has been cleaned.
+Revoke exposed Django, SMTP, MongoDB, and Cloudflare credentials at their providers.
+Replacing application configuration does not revoke old credentials. Scope DNS
+tokens to the required zone, restrict database access, review provider access logs,
+and verify integrations after redeploying. Never use an exposed Django key in
+`SECRET_KEY_FALLBACKS`.
 
-## Credential rotation
+For rotation of an uncompromised key, set the old key in `SECRET_KEY_FALLBACKS`,
+set a new `SECRET_KEY`, and deploy. Remove the fallback after the session lifetime
+(default two weeks). Compromised keys require immediate replacement without a
+fallback, invalidating old sessions and reset links.
 
-Historical revisions contained literal Django, SMTP, MongoDB, and Cloudflare
-credentials. Treat them as exposed; validity has not been tested. Rotate/revoke at
-those providers and update the service environment through its secret controls.
-For Cloudflare, use a token scoped to the needed zone and DNS operations. Rotate
-MongoDB credentials and restrict access to the application. Rotate the SMTP password
-through its mail administrator. Rotate the Django secret key; do not preserve an
-exposed key as a fallback. Restart/redeploy and verify integration operation after
-updating credentials. Review provider access logs for unexpected use.
+Defaults in `.env.example` include login failure limits (10/account and 50/IP per
+15 minutes), signup limits (10/IP/hour), contact email limits (10/user/day), and
+one-year HSTS for the exact host. Reset requests allow one/email/minute and
+10/IP/hour. Limits use shared database counters with opaque HMAC keys.
 
-## Git history and public copies
+On public Render services, client IP limits trust only the edge's
+`CF-Connecting-IP`; absent that header, IP limits are skipped. Outside Render,
+they use the socket address. Other proxy arrangements require an explicit review
+of this boundary; arbitrary `X-Forwarded-For` is not trusted. See
+[Render's edge architecture](https://render.com/articles/how-render-handles-ddos-attacks)
+and [Cloudflare's header contract](https://developers.cloudflare.com/fundamentals/reference/http-headers/#cf-connecting-ip).
 
-Deleting files at HEAD does not remove them from earlier public commits. Purge the
-CSV/log paths, compiled Python caches, and historical credential literals from **all published branches,
-tags, and relevant refs** using a fresh, private clone and `git-filter-repo` with
-sensitive-data-removal support. Validate the cleaned object graph before pushing.
-A local cleanup candidate is not a remote cleanup.
+## Sensitive Git history
 
-Coordinate the force-push with collaborators: commit hashes will change, signatures
-may be lost, and old clones can reintroduce removed history. Verify remote heads
-have not moved before replacing any refs. Do not mirror-push this checkout's refs:
-it includes refs for a separate upstream repository. Re-clone collaborators' working
-copies after the rewrite. The original local `.git` also retains the exposed history.
+The repository data guard prevents known credential patterns and operational data
+from being committed; it is not a comprehensive secret scanner. Enable GitHub
+secret scanning and push protection where available.
 
-The upstream public repository and anyone else's clones may contain copies; this
-project cannot remove those independently. After cleaning the project's published
-refs, request GitHub Support's removal of cached sensitive views/PR refs where
-applicable. Keep the request private; do not put the CSV, log, or credentials in a
-public issue. Follow [GitHub's sensitive-data removal procedure](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository).
+Removing files from the current branch does not purge historical commits, PR refs,
+caches, forks, or other clones. Use a private fresh clone and `git-filter-repo` to
+clean published branches and tags, coordinate rewritten history with collaborators,
+and verify remote heads before force-pushing. Never mirror-push this checkout: it
+contains refs from a separate upstream repository. Old clones can reintroduce
+sensitive history and should be replaced.
 
-Private local copies of the removed CSV/log were preserved in a mode-0700 temporary
-directory with mode-0600 files. Move any required copies into approved private
-storage; temporary directories are not durable backups. Never commit them again.
+Request cached sensitive-view and PR-ref removal privately through GitHub Support.
+Follow [GitHub's removal procedure](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository);
+never include credentials or alumni records in a public issue.

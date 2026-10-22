@@ -12,7 +12,6 @@ from django.utils import timezone
 from web import throttle
 
 logger = logging.getLogger(__name__)
-VOTING_OPEN_BATCH_SIZE = 1  # Private messages, individually tracked and quota counted.
 
 
 def election_url(election):

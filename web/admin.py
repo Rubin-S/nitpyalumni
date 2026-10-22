@@ -9,7 +9,6 @@ from .models import (
     GuestHouseBookingRequest, CardApplicationRequest, GetTranscriptRequest
 )
 
-# Universal export as CSV action
 def export_as_csv(modeladmin, request, queryset):
     meta = modeladmin.model._meta
     field_names = [field.name for field in meta.fields]
@@ -26,7 +25,6 @@ def export_as_csv(modeladmin, request, queryset):
 
 export_as_csv.short_description = "Export Selected as CSV"
 
-# UserData Admin
 @admin.register(UserData)
 class UserDataAdmin(admin.ModelAdmin):
     list_display = ('user', 'roll_no', 'name', 'account_is_approved', 'is_eligible_to_vote', 'batch', 'department', 'in_job')
@@ -70,8 +68,7 @@ class UserDataAdmin(admin.ModelAdmin):
         modeladmin.message_user(request, f"Voting eligibility revoked for {count} alumni.")
 
     actions = [export_as_csv, approve_selected, mark_eligible_to_vote, revoke_voting_eligibility]
-    
-# JobPosting Admin
+
 @admin.register(JobPosting)
 class JobPostingAdmin(admin.ModelAdmin):
     list_display = ('job_title', 'job_company', 'job_location', 'is_approved', 'posted_by')
@@ -80,7 +77,6 @@ class JobPostingAdmin(admin.ModelAdmin):
     ordering = ('-id',)
     actions = [export_as_csv]
 
-# Talk Admin
 @admin.register(Talk)
 class TalkAdmin(admin.ModelAdmin):
     list_display = ('user', 'topic', 'venue', 'datetime')
@@ -89,7 +85,6 @@ class TalkAdmin(admin.ModelAdmin):
     ordering = ('-datetime',)
     actions = [export_as_csv]
 
-# DonateBook Admin
 @admin.register(DonateBook)
 class DonateBookAdmin(admin.ModelAdmin):
     list_display = ('booktitle', 'user', 'is_approved')
@@ -104,7 +99,6 @@ class WebsiteAdmin(admin.ModelAdmin):
     list_filter = ('user__batch', 'user__department')
     ordering = ('name',)
 
-# GuestHouseBookingRequest Admin
 @admin.register(GuestHouseBookingRequest)
 class GuestHouseBookingRequestAdmin(admin.ModelAdmin):
     list_display = ('user', 'get_name', 'type_of_room', 'datetime_in', 'datetime_out')
@@ -117,7 +111,6 @@ class GuestHouseBookingRequestAdmin(admin.ModelAdmin):
     def get_name(self, obj):
         return obj.userdata.name if obj.userdata else obj.user.get_full_name()
 
-# CardApplicationRequest Admin
 @admin.register(CardApplicationRequest)
 class CardApplicationRequestAdmin(admin.ModelAdmin):
     list_display = ('user', 'get_name', 'reason', 'utr_transaction_number')
@@ -129,7 +122,6 @@ class CardApplicationRequestAdmin(admin.ModelAdmin):
     def get_name(self, obj):
         return obj.userdata.name if obj.userdata else obj.user.get_full_name()
 
-# GetTranscriptRequest Admin
 @admin.register(GetTranscriptRequest)
 class GetTranscriptRequestAdmin(admin.ModelAdmin):
     list_display = ('user', 'get_name', 'requested_on')
@@ -141,7 +133,7 @@ class GetTranscriptRequestAdmin(admin.ModelAdmin):
     @admin.display(description='Alumni Name')
     def get_name(self, obj):
         return obj.userdata.name if obj.userdata else obj.user.get_full_name()
-# Customizing admin site titles
+
 admin.site.site_header = "NITPY Alumni"
 admin.site.site_title = "NITPY Alumni Admin Portal"
 admin.site.index_title = "Welcome to NITPY Alumni Admin"
